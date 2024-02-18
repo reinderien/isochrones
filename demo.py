@@ -1,11 +1,12 @@
 import json
 from typing import NamedTuple
 
-import cartopy.crs
-import cartopy.feature.nightshade
-import cartopy.mpl.geoaxes
-import matplotlib.patches
+from cartopy.crs import Orthographic, Globe, Geodetic
+from cartopy.feature.nightshade import Nightshade
+from cartopy.geodesic import Geodesic
+from cartopy.mpl.geoaxes import GeoAxes
 from matplotlib import pyplot as plt
+from matplotlib.patches import Arc
 
 KAABA_COORD = (39.826167, 21.4225)
 
@@ -19,10 +20,10 @@ def load_home() -> tuple[float, float]:
 class Hemisphere(NamedTuple):
     name: str
     coord: tuple[float, float]
-    crs: cartopy.crs.Orthographic
-    ax: cartopy.mpl.geoaxes.GeoAxes
+    crs: Orthographic
+    ax: GeoAxes
 
-    GEODETIC_COLOUR = 'green'
+    GEODETIC_COLOUR = 'lightgreen'
     FEATURE_COLOUR = 'black'
 
     @classmethod
@@ -33,12 +34,11 @@ class Hemisphere(NamedTuple):
         coord: tuple[float, float],
         figure: plt.Figure,
         n_axes: int = 2,
-        globe: cartopy.crs.Globe | None = None,
+        globe: Globe | None = None,
     ) -> 'Hemisphere':
-        crs = cartopy.crs.Orthographic(
+        crs = Orthographic(
             central_longitude=coord[0],
-            central_latitude=coord[1],
-            globe=globe,
+            central_latitude=coord[1], globe=globe,
         )
         ax = figure.add_subplot(1, n_axes, index, projection=crs)
         return cls(name=name, coord=coord, crs=crs, ax=ax)
@@ -46,8 +46,8 @@ class Hemisphere(NamedTuple):
     def plot(
         self,
         endpoint: tuple[float, float],
-        geodetic: cartopy.crs.Geodetic,
-        night: cartopy.feature.nightshade.Nightshade,
+        geodetic: Geodetic,
+        night: Nightshade,
     ) -> None:
         self.ax.set_title(f'{self.name} hemisphere')
 
@@ -70,22 +70,23 @@ class HeadingHemisphere(Hemisphere):
 
     def plot_heading(
         self,
-        geodetic: cartopy.crs.Geodetic,
+        geodetic: Geodetic,
         geodesic_azimuth: float,
     ) -> None:
-        north = 90
+        north = 0
         self.ax.plot(
             [self.coord[0], self.coord[0]],
             [self.coord[1], self.coord[1] + 20],
             transform=geodetic, c=self.HEADING_COLOUR,
         )
-        self.ax.add_patch(matplotlib.patches.Arc(
-            xy=self.coord, transform=geodetic, color=self.HEADING_COLOUR,
-            width=10, height=10, theta1=geodesic_azimuth, theta2=north,
+        self.ax.add_patch(Arc(
+            xy=self.coord, width=10, height=10,
+            transform=geodetic, color=self.HEADING_COLOUR,
+            theta1=90 - geodesic_azimuth, theta2=90 - north,
         ))
 
 
-def plot(
+def plot_spherical(
     home_coord: tuple[float, float],
     geodesic_azimuth: float,
 ) -> plt.Figure:
@@ -96,8 +97,8 @@ def plot(
     kaaba_hemi = Hemisphere.make(
         name='Kaaba', index=2, coord=KAABA_COORD, figure=fig, globe=home_hemi.crs.globe)
 
-    geodetic = cartopy.crs.Geodetic(globe=home_hemi.crs.globe)
-    night = cartopy.feature.nightshade.Nightshade()
+    geodetic = Geodetic(globe=home_hemi.crs.globe)
+    night = Nightshade()
 
     kaaba_hemi.plot(endpoint=home_hemi.coord, geodetic=geodetic, night=night)
     home_hemi.plot(endpoint=kaaba_hemi.coord, geodetic=geodetic, night=night)
@@ -109,9 +110,13 @@ def plot(
 def main() -> None:
     home_coord = load_home()
 
-    plot(
-        home_coord=home_coord,
-        geodesic_azimuth=10,  # wrong
+    geodesic = Geodesic()  # WGS-84
+    (distance, home_azimuth, kabaa_azimuth), = geodesic.inverse(
+        points=home_coord, endpoints=KAABA_COORD,
+    )
+
+    plot_spherical(
+        home_coord=home_coord, geodesic_azimuth=home_azimuth,
     )
 
     plt.show()
