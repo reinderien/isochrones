@@ -1,6 +1,7 @@
 import json
 
 import cartopy
+from cartopy.feature.nightshade import Nightshade
 from cartopy.mpl.geoaxes import GeoAxes
 from matplotlib import pyplot as plt
 from matplotlib.patches import Arc
@@ -30,9 +31,10 @@ def main() -> None:
         globe=sphere_globe,
     )
 
-    # higher-resolution geodesics
-    crs_home.threshold *= 0.1
-    crs_kabaa.threshold *= 0.1
+    # higher-resolution geodesics - not needed for orthographic since geodesics are straight
+    # crs_home.threshold *= 0.1
+    # crs_kabaa.threshold *= 0.1
+
     geodesic_azimuth = 10  # bad
 
     fig: plt.Figure = plt.figure()
@@ -41,27 +43,32 @@ def main() -> None:
         for i, crs in enumerate((crs_home, crs_kabaa), start=1)
     ]
     ax_home, ax_kabaa = axes
-    ax_home.set_title('Home')
-    ax_kabaa.set_title('Kabaa')
+    ax_home.set_title('Home hemisphere')
+    ax_kabaa.set_title('Kabaa hemisphere')
 
     heading_colour = 'red'
     geodetic_colour = 'green'
     feature_colour = 'black'
+
+    night = Nightshade()
 
     for ax, origin in zip(axes, (home, KAABA)):
         ax.stock_img()
         ax.plot(
             [home[0], KAABA[0]], [home[1], KAABA[1]], transform=geodetic, c=geodetic_colour,
         )
+        ax.add_feature(night)
+        ax.gridlines()
         ax.scatter(
             [origin[0]], [origin[1]], transform=geodetic, c=feature_colour, marker='+', zorder=10,
         )
-        ax.gridlines()
 
-    pole_x = 0
-    pole_y = 90
     north = 90
-    ax_home.plot([home[0], pole_x], [home[1], pole_y], transform=geodetic, c=heading_colour)
+    ax_home.plot(
+        [home[0], home[0]],
+        [home[1], home[1] + 20],
+        transform=geodetic, c=heading_colour,
+    )
     ax_home.add_patch(Arc(
         xy=home, transform=geodetic, color=heading_colour,
         width=10, height=10, theta1=geodesic_azimuth, theta2=north,
