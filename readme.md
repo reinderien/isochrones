@@ -10,10 +10,15 @@ nuanced Muslim praxis.
 Terminology
 -----------
 
-[Salah](https://en.wikipedia.org/wiki/Salah) is the practice of daily Muslim prayer.
+[Salah](https://en.wikipedia.org/wiki/Salah) (صَلَاة)
+is the practice of daily Muslim prayer.
 
-The [Kaaba](https://en.wikipedia.org/wiki/Kaaba) is the geographical centre of the Islam religion
-and the location to which Muslims face when praying.
+The [Kaaba](https://en.wikipedia.org/wiki/Kaaba) (ٱلْكَعْبَة)
+in [Mecca](https://en.wikipedia.org/wiki/Mecca) (مكة),
+Saudi Arabia is the geographical centre of the Islam religion. Muslims face
+toward it via [geodesic](https://en.wikipedia.org/wiki/Geodesics_on_an_ellipsoid)
+in the [qibla](https://en.wikipedia.org/wiki/Qibla) (قِبْلَة)
+direction when praying.
 
 The typical five daily salah prayers are
 
@@ -23,4 +28,18 @@ The typical five daily salah prayers are
 - maghrib (dusk), and
 - isha (night).
 
-This code follows the schedule definitions from [Hamid's prayer time explainer](http://www.praytimes.org/calculation/).
+Implementation
+--------------
+
+This code follows the schedule definitions from
+[Hamid's prayer time guide](http://www.praytimes.org/calculation/).
+
+Setup
+-----
+
+
+
+Usage
+-----
+
+
