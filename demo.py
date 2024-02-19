@@ -166,7 +166,7 @@ class Hemisphere(NamedTuple):
 
     def plot_legend(self) -> None:
         self.ax.legend(
-            loc=(0.95, 0.1), bbox_transform=self.ax.transAxes,
+            loc=(1, 0.1), bbox_transform=self.ax.transAxes,
         )
 
 
