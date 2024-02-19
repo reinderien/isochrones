@@ -25,7 +25,7 @@ is called the [qibla](https://en.wikipedia.org/wiki/Qibla ) (قِبْلَة).
 This is the same path and initial heading that an airplane takes when flying to
 Saudi Arabia.
 
-Your screen is flat, so all maps need to choose a projection to
+The user's screen is flat, so all maps need to choose a projection to
 draw the spheroidal [globe](https://en.wikipedia.org/wiki/Globe).
 The [orthographic projection](https://en.wikipedia.org/wiki/Orthographic_projection)
 is convenient because it is easy to understand, appears to the viewer as if
@@ -53,14 +53,17 @@ least four different kinds of pole:
 
 - The terrestrial poles - also called geodetic, geographic or
   [true poles](https://en.wikipedia.org/wiki/True_north) - are intersection
-  points of Earth's rotational axis through its surface. They slowly
+  points of Earth's rotational axis through its surface. We colloquially call
+  these the north and south pole. They slowly
   [precess](https://en.wikipedia.org/wiki/Axial_precession) over tens of
-  thousands of years. We colloquially call these the north and south pole.
+  thousands of years.
 - The [magnetic poles](https://en.wikipedia.org/wiki/Poles_of_astronomical_bodies#Magnetic_poles)
   orient a compass. When Muslims determine the qibla for a given location, they
   need to account for
-  [magnetic declination](https://en.wikipedia.org/wiki/Magnetic_declination).
-  These poles [wander slowly](https://en.wikipedia.org/wiki/Paleomagnetism)
+  [magnetic declination](https://en.wikipedia.org/wiki/Magnetic_declination) to
+  translate from the magnetic frame to the terrestrial frame, in turn
+  determining a heading from true north. These magnetic poles
+  [wander slowly](https://en.wikipedia.org/wiki/Paleomagnetism)
   over millions of years.
 - The [celestial poles](https://en.wiktionary.org/wiki/celestial_pole) sit at
   arbitrary heights above the terrestrial poles and are independent of the
@@ -71,6 +74,7 @@ least four different kinds of pole:
   solar system [orbital plane](https://en.wikipedia.org/wiki/Ecliptic). The
   boundary of day and night will always intersect the ecliptic poles, with some
   minor difference due to [diffraction](https://en.wikipedia.org/wiki/Dawn).
+  The ecliptic moves through an annual cycle.
 
 At any given time, for a specific prayer, there is one curve across the Earth
 where all points on that curve satisfy the solar conditions for that prayer.
@@ -78,10 +82,10 @@ This curve is an [isochrone](https://en.wiktionary.org/wiki/isochrone). If the
 celestial and ecliptic poles were aligned, then prayer isochrones would be
 [meridians](https://en.wikipedia.org/wiki/Meridian_(geography)) in the
 rotational frame. However, since the Earth's rotation has an
-[axial tilt](https://en.wikipedia.org/wiki/Axial_tilt), the poles are offset by
-about 23° and the isochrones are actually _ecliptic_ meridians whose extents
-are the ecliptic poles. This has the effect of changing prayer times through
-the year.
+[axial tilt](https://en.wikipedia.org/wiki/Axial_tilt) or _ecliptic obliquity_,
+the poles are offset by about 23° and the isochrones are actually _ecliptic_
+meridians whose extents are the ecliptic poles. This has the effect of changing
+prayer times through the year.
 
 Implementation
 --------------
