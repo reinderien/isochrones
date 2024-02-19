@@ -3,6 +3,7 @@ from datetime import datetime, timezone, tzinfo
 from typing import NamedTuple
 from zoneinfo import ZoneInfo
 
+import numpy as np
 from cartopy.crs import Geodetic, Orthographic
 from cartopy.feature.nightshade import Nightshade
 from cartopy.geodesic import Geodesic
@@ -82,6 +83,23 @@ class Hemisphere(NamedTuple):
             s=local_now.strftime('%Y-%m-%d %H:%M:%S %z'),
             transform=self.geodetic, rotation=270,
             color=self.ANNOTATE_COLOUR, ha='left', va='top', zorder=12,
+        )
+
+        x, y = night._geoms[0].boundary.coords.xy
+        x = np.array(x)
+        y = np.array(y)
+        is_sunset = x < 0
+        is_sunrise = x > 0
+
+        xr, yr, zr = self.geodetic.transform_points(
+            src_crs=night.crs,
+            x=x, y=y,
+        ).T
+        self.ax.plot(
+            xr[is_sunrise], yr[is_sunrise], transform=self.geodetic, c='orange', zorder=10,
+        )
+        self.ax.plot(
+            xr[is_sunset], yr[is_sunset], transform=self.geodetic, c='purple', zorder=10,
         )
 
     def plot_heading(self) -> None:
