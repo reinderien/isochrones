@@ -79,7 +79,7 @@ class Hemisphere(NamedTuple):
         self.ax.plot(
             [self.coord[0], self.endpoint[0]],
             [self.coord[1], self.endpoint[1]],
-            transform=self.geodetic, zorder=10,
+            transform=self.geodetic, zorder=10, label='Qibla',
             c=self.time_colour(local_now, self.GEODETIC_COLOUR),
         )
 
@@ -111,6 +111,10 @@ class Hemisphere(NamedTuple):
             label='Fajr', c='orange',
         )
         self.ax.plot(
+            *self.noon_meridian(night), transform=self.geodetic, zorder=10,
+            label='Zuhr', c='yellow',
+        )
+        self.ax.plot(
             *xy[:, :noon], transform=self.geodetic, zorder=10,
             label='Maghrib', c='purple',
         )
@@ -122,6 +126,13 @@ class Hemisphere(NamedTuple):
             points=self.coord, endpoints=self.endpoint,
         )
         return distance, here_azimuth
+
+    def noon_meridian(self, night: Nightshade):
+        y = np.linspace(start=-90, stop=90, num=51)
+        x = np.full_like(a=y, fill_value=180)
+        return self.geodetic.transform_points(
+            x=x, y=y, src_crs=night.crs,
+        ).T[:-1]
 
     def plot_heading(self, utcnow: datetime) -> None:
         local_now = utcnow.astimezone(self.timezone)
@@ -148,8 +159,7 @@ class Hemisphere(NamedTuple):
         )
         self.ax.text(
             x=0.92, y=0.82,
-            s=f'Qibla:\n'
-            f'{distance*1e-3:,.0f} km @ {here_azimuth:.1f}°',
+            s=f'Geodesic: {distance*1e-3:,.0f} km',
             transform=self.ax.transAxes, zorder=12,
             color=self.ANNOTATE_COLOUR[1],  # it's always "night" in space
         )

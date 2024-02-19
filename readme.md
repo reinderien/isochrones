@@ -21,7 +21,7 @@ toward it when praying. Since the Earth is an
 surface path to the Kaaba is via
 [geodesic](https://en.wikipedia.org/wiki/Geodesics_on_an_ellipsoid). This
 geodesic's initial [heading](https://en.wikipedia.org/wiki/Heading_(navigation))
-is called the [qibla](https://en.wikipedia.org/wiki/Qibla ) (قِبْلَة).
+is called the [qibla](https://en.wikipedia.org/wiki/Qibla) (قِبْلَة).
 This is the same path and initial heading that an airplane takes when flying to
 Saudi Arabia.
 
@@ -89,7 +89,7 @@ celestial and ecliptic poles were aligned, then prayer isochrones would be
 rotational frame. However, since the Earth's rotation has an
 [axial tilt](https://en.wikipedia.org/wiki/Axial_tilt) or _ecliptic obliquity_,
 the poles are offset by about 23° and the isochrones are actually _ecliptic_
-meridians whose extents are the ecliptic poles. This has the effect of changing
+meridians extending to the ecliptic poles. This has the effect of changing
 prayer times through the year.
 
 Implementation
