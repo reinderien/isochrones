@@ -27,7 +27,7 @@ class Hemisphere(NamedTuple):
     crs: Orthographic
     geodetic: Geodetic
     ax: GeoAxes
-    timezone: tzinfo
+    timezone: tzinfo | None
 
     GEODETIC_COLOUR = 'lightgreen'
     FEATURE_COLOUR = 'black'
@@ -42,7 +42,7 @@ class Hemisphere(NamedTuple):
         coord: tuple[float, float],
         endpoint: tuple[float, float],
         figure: plt.Figure,
-        timezone: tzinfo,
+        local_timezone: tzinfo | None,
         n_axes: int = 2,
         geodetic: Geodetic | None = None,
     ) -> 'Hemisphere':
@@ -52,13 +52,13 @@ class Hemisphere(NamedTuple):
         )
         ax = figure.add_subplot(1, n_axes, index, projection=crs)
         return cls(
-            name=name, coord=coord, endpoint=endpoint, crs=crs, ax=ax, timezone=timezone,
+            name=name, coord=coord, endpoint=endpoint, crs=crs, ax=ax, timezone=local_timezone,
             geodetic=geodetic or Geodetic(globe=crs.globe))
 
     def plot(
         self,
         night: Nightshade,
-        home_now: datetime,
+        utcnow: datetime,
     ) -> None:
         self.ax.set_title(f'{self.name} hemisphere')
         self.ax.stock_img()
@@ -76,7 +76,7 @@ class Hemisphere(NamedTuple):
             transform=self.geodetic, c=self.FEATURE_COLOUR, marker='+', zorder=11,
         )
 
-        local_now = home_now.astimezone(self.timezone)
+        local_now = utcnow.astimezone(self.timezone)
         self.ax.text(
             x=self.coord[0], y=self.coord[1],
             s=local_now.strftime('%Y-%m-%d %H:%M:%S %z'),
@@ -116,30 +116,31 @@ class Hemisphere(NamedTuple):
 
 def plot_spherical(
     home_coord: tuple[float, float],
-    home_now: datetime,
+    utcnow: datetime,
 ) -> plt.Figure:
     fig: plt.Figure = plt.figure()
 
     home_hemi = Hemisphere.make(
         name='Home', index=1, coord=home_coord, endpoint=KAABA_COORD,
-        figure=fig, timezone=home_now.tzinfo)
+        figure=fig, local_timezone=None)
     kaaba_hemi = Hemisphere.make(
         name='Kaaba', index=2, coord=KAABA_COORD, endpoint=home_coord,
-        figure=fig, timezone=KAABA_TIMEZONE, geodetic=home_hemi.geodetic)
+        figure=fig, local_timezone=KAABA_TIMEZONE, geodetic=home_hemi.geodetic)
 
-    night = Nightshade(date=home_now.astimezone(timezone.utc))
-    kaaba_hemi.plot(night=night, home_now=home_now)
-    home_hemi.plot(night=night, home_now=home_now)
+    night = Nightshade(date=utcnow)
+    kaaba_hemi.plot(night=night, utcnow=utcnow)
+    home_hemi.plot(night=night, utcnow=utcnow)
     home_hemi.plot_heading()
 
     return fig
 
 
 def main() -> None:
-    home_now = datetime.now().astimezone()
+    utcnow = datetime.now().astimezone(timezone.utc)
     home_coord = load_home()
 
-    plot_spherical(home_coord=home_coord, home_now=home_now)
+    plt.style.use('dark_background')
+    plot_spherical(home_coord=home_coord, utcnow=utcnow)
     plt.show()
 
 
