@@ -1,8 +1,8 @@
 import json
 from datetime import datetime, tzinfo
 from typing import NamedTuple
+from zoneinfo import ZoneInfo
 
-import pytz
 from cartopy.crs import Geodetic, Orthographic
 from cartopy.feature.nightshade import Nightshade
 from cartopy.geodesic import Geodesic
@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Arc
 
 KAABA_COORD = (39.826167, 21.4225)
-KAABA_TIMEZONE = pytz.timezone('Asia/Riyadh')
+KAABA_TIMEZONE = ZoneInfo('Asia/Riyadh')
 
 
 def load_home() -> tuple[float, float]:

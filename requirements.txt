@@ -1,4 +1,4 @@
 cartopy
 matplotlib
-pytz
 scipy
+tzdata
