@@ -5,7 +5,7 @@ This is a project to explore astro-geological calculation and visualisation for
 Muslim prayer times. It's not meant to be authoritative (either scientifically
 or religiously); it's only for fun and interest. It's written from a
 perspective having only an introductory familiarity with the complex and
-nuanced Muslim praxis.
+nuanced Muslim praxis and with astrodynamics.
 
 Terminology
 -----------
@@ -74,7 +74,12 @@ least four different kinds of pole:
   solar system [orbital plane](https://en.wikipedia.org/wiki/Ecliptic). The
   boundary of day and night will always intersect the ecliptic poles, with some
   minor difference due to [diffraction](https://en.wikipedia.org/wiki/Dawn).
-  The ecliptic moves through an annual cycle.
+  The ecliptic moves through an annual cycle. The ecliptic pole for the current
+  day of year is
+  [gimbal-locked](https://en.wikipedia.org/wiki/Gimbal_lock), implying an
+  undefined prayer schedule at that location;
+  [fatwa 2769](https://islamqa.info/en/answers/5842/how-to-pray-and-fast-in-countries-where-the-day-or-night-is-continuous)
+  attempted to clear this ambiguity.
 
 At any given time, for a specific prayer, there is one curve across the Earth
 where all points on that curve satisfy the solar conditions for that prayer.
