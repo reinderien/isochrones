@@ -30,10 +30,10 @@ class Hemisphere(NamedTuple):
     ax: GeoAxes
     timezone: tzinfo | None
 
-    GEODETIC_COLOUR = 'lightgreen'
-    FEATURE_COLOUR = 'black'
-    ANNOTATE_COLOUR = 'white'
-    HEADING_COLOUR = 'red'
+    GEODETIC_COLOUR = ('green', 'lightgreen')
+    FEATURE_COLOUR = ('black', 'white')
+    ANNOTATE_COLOUR = ('black', 'white')
+    HEADING_COLOUR = ('red', 'red')
 
     @classmethod
     def make(
@@ -56,11 +56,20 @@ class Hemisphere(NamedTuple):
             name=name, coord=coord, endpoint=endpoint, crs=crs, ax=ax, timezone=local_timezone,
             geodetic=geodetic or Geodetic(globe=crs.globe))
 
+    @staticmethod
+    def time_colour(local_now: datetime, colours: tuple[str, str]) -> str:
+        day, night = colours
+        if 6 <= local_now.hour < 18:  # hacky; could actually pay attention to night data
+            return day
+        return night
+
     def plot(
         self,
         night: Nightshade,
         utcnow: datetime,
     ) -> None:
+        local_now = utcnow.astimezone(self.timezone)
+
         self.ax.set_title(f'{self.name} hemisphere')
         self.ax.stock_img()
         self.ax.add_feature(night, zorder=5)
@@ -69,20 +78,21 @@ class Hemisphere(NamedTuple):
         self.ax.plot(
             [self.coord[0], self.endpoint[0]],
             [self.coord[1], self.endpoint[1]],
-            transform=self.geodetic, c=self.GEODETIC_COLOUR, zorder=10,
+            transform=self.geodetic, zorder=10,
+            c=self.time_colour(local_now, self.GEODETIC_COLOUR),
         )
 
         self.ax.scatter(
             [self.coord[0]], [self.coord[1]],
-            transform=self.geodetic, c=self.FEATURE_COLOUR, marker='+', zorder=11,
+            transform=self.geodetic, marker='+', zorder=11,
+            c=self.time_colour(local_now, self.FEATURE_COLOUR),
         )
 
-        local_now = utcnow.astimezone(self.timezone)
         self.ax.text(
-            x=self.coord[0], y=self.coord[1],
+            x=self.coord[0], y=self.coord[1], rotation=270,
             s=local_now.strftime('%Y-%m-%d %H:%M:%S %z'),
-            transform=self.geodetic, rotation=270,
-            color=self.ANNOTATE_COLOUR, ha='left', va='top', zorder=12,
+            transform=self.geodetic, ha='left', va='top', zorder=12,
+            color=self.time_colour(local_now, self.ANNOTATE_COLOUR),
         )
 
         x, y = night._geoms[0].boundary.coords.xy
@@ -102,33 +112,43 @@ class Hemisphere(NamedTuple):
             xr[is_sunset], yr[is_sunset], transform=self.geodetic, c='purple', zorder=10,
         )
 
-    def plot_heading(self) -> None:
-        geodesic = Geodesic()  # WGS-84, not spherical - so we don't pass in class params
-        (distance, home_azimuth, kabaa_azimuth), = geodesic.inverse(
+    def inverse_geodesic(self) -> tuple[float, float]:
+        # WGS-84, not spherical - so we don't pass in class params
+        geodesic = Geodesic()
+        (distance, here_azimuth, other_azimuth), = geodesic.inverse(
             points=self.coord, endpoints=self.endpoint,
         )
+        return distance, here_azimuth
+
+    def plot_heading(self, utcnow: datetime) -> None:
+        local_now = utcnow.astimezone(self.timezone)
+        distance, here_azimuth = self.inverse_geodesic()
 
         north = 0
         self.ax.plot(
             [self.coord[0], self.coord[0]],
             [self.coord[1], self.coord[1] + 20],
-            transform=self.geodetic, c=self.HEADING_COLOUR, zorder=10,
+            transform=self.geodetic, zorder=10,
+            c=self.time_colour(local_now, self.HEADING_COLOUR),
         )
         self.ax.add_patch(Arc(
             xy=self.coord, width=10, height=10,
-            transform=self.geodetic, color=self.HEADING_COLOUR,
-            theta1=90 - home_azimuth, theta2=90 - north,
-            zorder=10,
+            transform=self.geodetic, zorder=10,
+            theta1=90 - here_azimuth, theta2=90 - north,
+            color=self.time_colour(local_now, self.HEADING_COLOUR),
         ))
 
         self.ax.text(
-            x=self.coord[0], y=self.coord[1] + 6, transform=self.geodetic,
-            s=f'{home_azimuth:.1f}°', color=self.ANNOTATE_COLOUR, zorder=12,
+            x=self.coord[0], y=self.coord[1] + 6, s=f'{here_azimuth:.1f}°',
+            transform=self.geodetic, zorder=12,
+            color=self.time_colour(local_now, self.ANNOTATE_COLOUR),
         )
         self.ax.text(
-            x=0.92, y=0.82, transform=self.ax.transAxes, zorder=12,
-            s=f'WGS-84 elliptical geodesic\n'
-            f'{distance*1e-3:,.0f} km @ {home_azimuth:.1f}°',
+            x=0.92, y=0.82,
+            s=f'Qibla:\n'
+            f'{distance*1e-3:,.0f} km @ {here_azimuth:.1f}°',
+            transform=self.ax.transAxes, zorder=12,
+            color=self.ANNOTATE_COLOUR[1],  # it's always "night" in space
         )
 
 
@@ -148,7 +168,7 @@ def plot_spherical(
     night = Nightshade(date=utcnow)
     kaaba_hemi.plot(night=night, utcnow=utcnow)
     home_hemi.plot(night=night, utcnow=utcnow)
-    home_hemi.plot_heading()
+    home_hemi.plot_heading(utcnow=utcnow)
 
     return fig
 
