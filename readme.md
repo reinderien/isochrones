@@ -39,11 +39,11 @@ user's home location and one on the Kaaba.
 
 The typical five daily salah prayers are
 
-- fajr (dawn),
-- dhuhr (noon),
-- asr (afternoon),
-- maghrib (dusk), and
-- isha (night).
+- fajr (صلاة الفجر, at dawn),
+- zuhr (صَلَاة ٱلظُّهْر, at noon),
+- asr (صلاة العصر, at afternoon),
+- maghrib (صلاة المغرب, at sunset), and
+- isha (صلاة العشاء, at dusk).
 
 Each is tied to a specific [solar time](https://en.wikipedia.org/wiki/Solar_time).
 Calculations relating solar time and
