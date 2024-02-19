@@ -37,7 +37,7 @@ This code follows the schedule definitions from
 Setup
 -----
 
-
+`pip install -r requirements.txt`
 
 Usage
 -----
