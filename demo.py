@@ -107,10 +107,12 @@ class Hemisphere(NamedTuple):
         ).T[:-1]
         noon = xy.shape[1]//2
         self.ax.plot(
-            *xy[:, noon:], transform=self.geodetic, zorder=10, c='orange',
+            *xy[:, noon:], transform=self.geodetic, zorder=10,
+            label='Fajr', c='orange',
         )
         self.ax.plot(
-            *xy[:, :noon], transform=self.geodetic, zorder=10, c='purple',
+            *xy[:, :noon], transform=self.geodetic, zorder=10,
+            label='Maghrib', c='purple',
         )
 
     def inverse_geodesic(self) -> tuple[float, float]:
@@ -152,6 +154,11 @@ class Hemisphere(NamedTuple):
             color=self.ANNOTATE_COLOUR[1],  # it's always "night" in space
         )
 
+    def plot_legend(self) -> None:
+        self.ax.legend(
+            loc=(0.95, 0.1), bbox_transform=self.ax.transAxes,
+        )
+
 
 def plot_spherical(
     home_coord: tuple[float, float],
@@ -172,6 +179,7 @@ def plot_spherical(
     kaaba_hemi.plot_salah_meridians(night=night)
     home_hemi.plot_salah_meridians(night=night)
     home_hemi.plot_heading(utcnow=utcnow)
+    home_hemi.plot_legend()
 
     return fig
 
