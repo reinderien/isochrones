@@ -1,7 +1,7 @@
 import json
 from array import array
 from datetime import datetime, timezone, tzinfo
-from typing import NamedTuple
+from typing import ClassVar, NamedTuple
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -31,10 +31,10 @@ class Hemisphere(NamedTuple):
     ax: GeoAxes
     timezone: tzinfo | None
 
-    GEODETIC_COLOUR = ('green', 'lightgreen')
-    FEATURE_COLOUR = ('black', 'white')
-    ANNOTATE_COLOUR = ('black', 'white')
-    HEADING_COLOUR = ('red', 'red')
+    GEODETIC_COLOUR: ClassVar[tuple[str, str]] = ('green', 'lightgreen')
+    FEATURE_COLOUR: ClassVar[tuple[str, str]] = ('black', 'white')
+    ANNOTATE_COLOUR: ClassVar[tuple[str, str]] = ('black', 'white')
+    HEADING_COLOUR: ClassVar[tuple[str, str]] = ('red', 'red')
 
     @classmethod
     def make(
@@ -127,7 +127,7 @@ class Hemisphere(NamedTuple):
         )
         return distance, here_azimuth
 
-    def noon_meridian(self, night: Nightshade):
+    def noon_meridian(self, night: Nightshade) -> np.ndarray:
         y = np.linspace(start=-90, stop=90, num=51)
         x = np.full_like(a=y, fill_value=180)
         return self.geodetic.transform_points(
