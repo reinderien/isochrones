@@ -1,7 +1,7 @@
 import json
 from typing import NamedTuple
 
-from cartopy.crs import Orthographic, Globe, Geodetic
+from cartopy.crs import Geodetic, Globe, Orthographic
 from cartopy.feature.nightshade import Nightshade
 from cartopy.geodesic import Geodesic
 from cartopy.mpl.geoaxes import GeoAxes
@@ -72,6 +72,7 @@ class HeadingHemisphere(Hemisphere):
         self,
         geodetic: Geodetic,
         geodesic_azimuth: float,
+        geodesic_distance: float,
     ) -> None:
         north = 0
         self.ax.plot(
@@ -85,10 +86,21 @@ class HeadingHemisphere(Hemisphere):
             theta1=90 - geodesic_azimuth, theta2=90 - north,
         ))
 
+        self.ax.text(
+            x=self.coord[0], y=self.coord[1] + 6, transform=geodetic,
+            s=f'{geodesic_azimuth:.1f}°', color='white',
+        )
+        self.ax.text(
+            x=0.92, y=0.82, transform=self.ax.transAxes,
+            s=f'WGS-84 elliptical geodesic\n'
+            f'{geodesic_distance*1e-3:,.0f} km @ {geodesic_azimuth:.1f}°',
+        )
+
 
 def plot_spherical(
     home_coord: tuple[float, float],
     geodesic_azimuth: float,
+    geodesic_distance: float,
 ) -> plt.Figure:
     fig: plt.Figure = plt.figure()
 
@@ -102,7 +114,10 @@ def plot_spherical(
 
     kaaba_hemi.plot(endpoint=home_hemi.coord, geodetic=geodetic, night=night)
     home_hemi.plot(endpoint=kaaba_hemi.coord, geodetic=geodetic, night=night)
-    home_hemi.plot_heading(geodetic=geodetic, geodesic_azimuth=geodesic_azimuth)
+    home_hemi.plot_heading(
+        geodesic_azimuth=geodesic_azimuth,
+        geodesic_distance=geodesic_distance, geodetic=geodetic,
+    )
 
     return fig
 
@@ -116,7 +131,8 @@ def main() -> None:
     )
 
     plot_spherical(
-        home_coord=home_coord, geodesic_azimuth=home_azimuth,
+        geodesic_azimuth=home_azimuth,
+        geodesic_distance=distance, home_coord=home_coord,
     )
 
     plt.show()
