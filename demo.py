@@ -1,4 +1,5 @@
 import json
+from array import array
 from datetime import datetime, timezone, tzinfo
 from typing import NamedTuple
 from zoneinfo import ZoneInfo
@@ -63,7 +64,7 @@ class Hemisphere(NamedTuple):
             return day
         return night
 
-    def plot(
+    def plot_common(
         self,
         night: Nightshade,
         utcnow: datetime,
@@ -84,32 +85,33 @@ class Hemisphere(NamedTuple):
 
         self.ax.scatter(
             [self.coord[0]], [self.coord[1]],
-            transform=self.geodetic, marker='+', zorder=11,
+            transform=self.geodetic, zorder=11, marker='+',
             c=self.time_colour(local_now, self.FEATURE_COLOUR),
         )
 
         self.ax.text(
             x=self.coord[0], y=self.coord[1], rotation=270,
             s=local_now.strftime('%Y-%m-%d %H:%M:%S %z'),
-            transform=self.geodetic, ha='left', va='top', zorder=12,
+            transform=self.geodetic, zorder=12, ha='left', va='top',
             color=self.time_colour(local_now, self.ANNOTATE_COLOUR),
         )
 
-        x, y = night._geoms[0].boundary.coords.xy
-        x = np.array(x)
-        y = np.array(y)
-        is_sunset = x < 0
-        is_sunrise = x > 0
-
-        xr, yr, zr = self.geodetic.transform_points(
-            src_crs=night.crs,
-            x=x, y=y,
+    def plot_salah_isocurves(self, night: Nightshade) -> None:
+        geom, = night.geometries()
+        xarray: array
+        yarray: array
+        xarray, yarray = geom.boundary.coords.xy
+        x, y, z = self.geodetic.transform_points(
+            x=np.frombuffer(xarray),
+            y=np.frombuffer(yarray), src_crs=night.crs,
         ).T
+        is_sunset = slice(x.size//2)
+        is_sunrise = slice(x.size//2, None)
         self.ax.plot(
-            xr[is_sunrise], yr[is_sunrise], transform=self.geodetic, c='orange', zorder=10,
+            x[is_sunrise], y[is_sunrise], transform=self.geodetic, zorder=10, c='orange',
         )
         self.ax.plot(
-            xr[is_sunset], yr[is_sunset], transform=self.geodetic, c='purple', zorder=10,
+            x[is_sunset], y[is_sunset], transform=self.geodetic, zorder=10, c='purple',
         )
 
     def inverse_geodesic(self) -> tuple[float, float]:
@@ -166,8 +168,10 @@ def plot_spherical(
         figure=fig, local_timezone=KAABA_TIMEZONE, geodetic=home_hemi.geodetic)
 
     night = Nightshade(date=utcnow)
-    kaaba_hemi.plot(night=night, utcnow=utcnow)
-    home_hemi.plot(night=night, utcnow=utcnow)
+    kaaba_hemi.plot_common(night=night, utcnow=utcnow)
+    home_hemi.plot_common(night=night, utcnow=utcnow)
+    kaaba_hemi.plot_salah_isocurves(night=night)
+    home_hemi.plot_salah_isocurves(night=night)
     home_hemi.plot_heading(utcnow=utcnow)
 
     return fig
