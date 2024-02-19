@@ -1,4 +1,5 @@
 cartopy
 matplotlib
+numpy
 scipy
 tzdata
