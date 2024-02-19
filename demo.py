@@ -96,22 +96,21 @@ class Hemisphere(NamedTuple):
             color=self.time_colour(local_now, self.ANNOTATE_COLOUR),
         )
 
-    def plot_salah_isocurves(self, night: Nightshade) -> None:
+    def plot_salah_meridians(self, night: Nightshade) -> None:
         geom, = night.geometries()
         xarray: array
         yarray: array
         xarray, yarray = geom.boundary.coords.xy
-        x, y, z = self.geodetic.transform_points(
+        xy = self.geodetic.transform_points(
             x=np.frombuffer(xarray),
             y=np.frombuffer(yarray), src_crs=night.crs,
-        ).T
-        is_sunset = slice(x.size//2)
-        is_sunrise = slice(x.size//2, None)
+        ).T[:-1]
+        noon = xy.shape[1]//2
         self.ax.plot(
-            x[is_sunrise], y[is_sunrise], transform=self.geodetic, zorder=10, c='orange',
+            *xy[:, noon:], transform=self.geodetic, zorder=10, c='orange',
         )
         self.ax.plot(
-            x[is_sunset], y[is_sunset], transform=self.geodetic, zorder=10, c='purple',
+            *xy[:, :noon], transform=self.geodetic, zorder=10, c='purple',
         )
 
     def inverse_geodesic(self) -> tuple[float, float]:
@@ -170,8 +169,8 @@ def plot_spherical(
     night = Nightshade(date=utcnow)
     kaaba_hemi.plot_common(night=night, utcnow=utcnow)
     home_hemi.plot_common(night=night, utcnow=utcnow)
-    kaaba_hemi.plot_salah_isocurves(night=night)
-    home_hemi.plot_salah_isocurves(night=night)
+    kaaba_hemi.plot_salah_meridians(night=night)
+    home_hemi.plot_salah_meridians(night=night)
     home_hemi.plot_heading(utcnow=utcnow)
 
     return fig
