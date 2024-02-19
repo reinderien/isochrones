@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, tzinfo
+from datetime import datetime, timezone, tzinfo
 from typing import NamedTuple
 from zoneinfo import ZoneInfo
 
@@ -127,7 +127,7 @@ def plot_spherical(
         name='Kaaba', index=2, coord=KAABA_COORD, endpoint=home_coord,
         figure=fig, timezone=KAABA_TIMEZONE, geodetic=home_hemi.geodetic)
 
-    night = Nightshade()
+    night = Nightshade(date=home_now.astimezone(timezone.utc))
     kaaba_hemi.plot(night=night, home_now=home_now)
     home_hemi.plot(night=night, home_now=home_now)
     home_hemi.plot_heading()
