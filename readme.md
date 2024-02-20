@@ -99,8 +99,8 @@ the effect of changing prayer times through the year.
 
 Further, since all of the prayer definitions need various amounts of angular
 correction to account for refraction, they are not really meridians. They're
-geodesics offset (sometimes significantly, up to 20-some degrees) from the
-ecliptic poles.
+paths offset (sometimes significantly, up to 20-some degrees) from the ecliptic
+poles.
 
 Degenerate locations
 --------------------
@@ -113,7 +113,7 @@ rises or sets.
 
 There are two degenerate polar regions; whether they appear in the north or
 south depends on the time of year. In one region spanning from an ecliptic pole
-to the terminus of the fajr/isha geodesics, it is always dark but never
+to the terminus of the fajr/isha isochrones, it is always dark but never
 dark enough to meet the refraction threshold for fajr and isha, so fajr and
 isha cannot happen. In the other region bounded by the other ecliptic pole, it
 is always bright, the sun never sets, and fajr and isha still cannot happen.
