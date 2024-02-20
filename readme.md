@@ -90,7 +90,9 @@ rotational frame. However, since the Earth's rotation has an
 [axial tilt](https://en.wikipedia.org/wiki/Axial_tilt) or _ecliptic obliquity_,
 the poles are offset by about 23° and the isochrones are actually _ecliptic_
 meridians extending to the ecliptic poles. This has the effect of changing
-prayer times through the year.
+prayer times through the year. Further, since all of the prayer definitions
+need various amounts of angular correction to account for refraction, they are
+not really meridians; they're geodesics offset from the ecliptic poles.
 
 Implementation
 --------------
