@@ -27,6 +27,41 @@ def load_home() -> tuple[float, float]:
     return coords['lon'], coords['lat']
 
 
+class Prayer(NamedTuple):
+    name: str
+    angle: float  # degrees after sunrise or before sunset
+    pm: bool
+    colour: str
+
+    def meridian(self, geodetic: Geodetic, utcnow: datetime) -> np.ndarray:
+        night = Nightshade(refraction=self.angle, date=utcnow, delta=2)
+        geom, = night.geometries()
+        xarray: array
+        yarray: array
+        xarray, yarray = geom.boundary.coords.xy
+        xy = geodetic.transform_points(
+            x=np.frombuffer(xarray),
+            y=np.frombuffer(yarray), src_crs=night.crs,
+        ).T[:-1]
+
+        # This is wasteful - we always throw away half of the geometry, even if it's symmetrical.
+        # However, it's either that or copy a bunch of code from cartopy.
+        noon_idx = xy.shape[1]//2
+        if self.pm:
+            xy = xy[:, :noon_idx]
+        else:
+            xy = xy[:, noon_idx:]
+        return xy
+
+
+PRAYERS = (
+    Prayer(name='Fajr', angle=-18, pm=False, colour='orange'),
+    Prayer(name='Dhuhr', angle=+90, pm=True, colour='yellow'),
+    Prayer(name='Maghrib', angle=-0.833, pm=True, colour='purple'),
+    Prayer(name='Isha', angle=-18, pm=True, colour='blue'),
+)
+
+
 class Hemisphere(NamedTuple):
     name: str
     coord: tuple[float, float]
@@ -96,28 +131,13 @@ class Hemisphere(NamedTuple):
             color=self.time_colour(local_now, ANNOTATE_COLOUR),
         )
 
-    def plot_salah_meridians(self, night: Nightshade) -> None:
-        geom, = night.geometries()
-        xarray: array
-        yarray: array
-        xarray, yarray = geom.boundary.coords.xy
-        xy = self.geodetic.transform_points(
-            x=np.frombuffer(xarray),
-            y=np.frombuffer(yarray), src_crs=night.crs,
-        ).T[:-1]
-        noon = xy.shape[1]//2
-        self.ax.plot(
-            *xy[:, noon:], transform=self.geodetic, zorder=10,
-            label='Fajr', c='orange',
-        )
-        self.ax.plot(
-            *self.noon_meridian(night), transform=self.geodetic, zorder=10,
-            label='Zuhr', c='yellow',
-        )
-        self.ax.plot(
-            *xy[:, :noon], transform=self.geodetic, zorder=10,
-            label='Maghrib', c='purple',
-        )
+    def plot_salah_meridians(self, utcnow: datetime) -> None:
+        for prayer in PRAYERS:
+            xy = prayer.meridian(geodetic=self.geodetic, utcnow=utcnow)
+            self.ax.plot(
+                *xy, transform=self.geodetic, zorder=10,
+                label=prayer.name, c=prayer.colour,
+            )
 
     def inverse_geodesic(self) -> tuple[float, float]:
         # WGS-84, not spherical - so we don't pass in class params
@@ -126,13 +146,6 @@ class Hemisphere(NamedTuple):
             points=self.coord, endpoints=self.endpoint,
         )
         return distance, here_azimuth
-
-    def noon_meridian(self, night: Nightshade) -> np.ndarray:
-        y = np.linspace(start=-90, stop=90, num=51)
-        x = np.full_like(a=y, fill_value=180)
-        return self.geodetic.transform_points(
-            x=x, y=y, src_crs=night.crs,
-        ).T[:-1]
 
     def plot_heading(self, utcnow: datetime) -> None:
         local_now = utcnow.astimezone(self.timezone)
@@ -186,8 +199,8 @@ def plot_spherical(
     night = Nightshade(date=utcnow)
     kaaba_hemi.plot_common(night=night, utcnow=utcnow)
     home_hemi.plot_common(night=night, utcnow=utcnow)
-    kaaba_hemi.plot_salah_meridians(night=night)
-    home_hemi.plot_salah_meridians(night=night)
+    kaaba_hemi.plot_salah_meridians(utcnow=utcnow)
+    home_hemi.plot_salah_meridians(utcnow=utcnow)
     home_hemi.plot_heading(utcnow=utcnow)
     home_hemi.plot_legend()
 
