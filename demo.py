@@ -1,7 +1,7 @@
 import json
 from array import array
 from datetime import datetime, timezone, tzinfo
-from typing import ClassVar, NamedTuple
+from typing import NamedTuple
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -14,6 +14,11 @@ from matplotlib.patches import Arc
 
 KAABA_COORD = (39.826167, 21.4225)
 KAABA_TIMEZONE = ZoneInfo('Asia/Riyadh')
+
+GEODETIC_COLOUR: tuple[str, str] = ('green', 'lightgreen')
+FEATURE_COLOUR: tuple[str, str] = ('black', 'white')
+ANNOTATE_COLOUR: tuple[str, str] = ('black', 'white')
+HEADING_COLOUR: tuple[str, str] = ('red', 'red')
 
 
 def load_home() -> tuple[float, float]:
@@ -30,11 +35,6 @@ class Hemisphere(NamedTuple):
     geodetic: Geodetic
     ax: GeoAxes
     timezone: tzinfo | None
-
-    GEODETIC_COLOUR: ClassVar[tuple[str, str]] = ('green', 'lightgreen')
-    FEATURE_COLOUR: ClassVar[tuple[str, str]] = ('black', 'white')
-    ANNOTATE_COLOUR: ClassVar[tuple[str, str]] = ('black', 'white')
-    HEADING_COLOUR: ClassVar[tuple[str, str]] = ('red', 'red')
 
     @classmethod
     def make(
@@ -80,20 +80,20 @@ class Hemisphere(NamedTuple):
             [self.coord[0], self.endpoint[0]],
             [self.coord[1], self.endpoint[1]],
             transform=self.geodetic, zorder=10, label='Qibla',
-            c=self.time_colour(local_now, self.GEODETIC_COLOUR),
+            c=self.time_colour(local_now, GEODETIC_COLOUR),
         )
 
         self.ax.scatter(
             [self.coord[0]], [self.coord[1]],
             transform=self.geodetic, zorder=11, marker='+',
-            c=self.time_colour(local_now, self.FEATURE_COLOUR),
+            c=self.time_colour(local_now, FEATURE_COLOUR),
         )
 
         self.ax.text(
             x=self.coord[0], y=self.coord[1], rotation=270,
             s=local_now.strftime('%Y-%m-%d %H:%M:%S %z'),
             transform=self.geodetic, zorder=12, ha='left', va='top',
-            color=self.time_colour(local_now, self.ANNOTATE_COLOUR),
+            color=self.time_colour(local_now, ANNOTATE_COLOUR),
         )
 
     def plot_salah_meridians(self, night: Nightshade) -> None:
@@ -143,25 +143,25 @@ class Hemisphere(NamedTuple):
             [self.coord[0], self.coord[0]],
             [self.coord[1], self.coord[1] + 20],
             transform=self.geodetic, zorder=10,
-            c=self.time_colour(local_now, self.HEADING_COLOUR),
+            c=self.time_colour(local_now, HEADING_COLOUR),
         )
         self.ax.add_patch(Arc(
             xy=self.coord, width=10, height=10,
             transform=self.geodetic, zorder=10,
             theta1=90 - here_azimuth, theta2=90 - north,
-            color=self.time_colour(local_now, self.HEADING_COLOUR),
+            color=self.time_colour(local_now, HEADING_COLOUR),
         ))
 
         self.ax.text(
             x=self.coord[0], y=self.coord[1] + 6, s=f'{here_azimuth:.1f}°',
             transform=self.geodetic, zorder=12,
-            color=self.time_colour(local_now, self.ANNOTATE_COLOUR),
+            color=self.time_colour(local_now, ANNOTATE_COLOUR),
         )
         self.ax.text(
             x=0.92, y=0.82,
             s=f'Geodesic: {distance*1e-3:,.0f} km',
             transform=self.ax.transAxes, zorder=12,
-            color=self.ANNOTATE_COLOUR[1],  # it's always "night" in space
+            color=ANNOTATE_COLOUR[1],  # it's always "night" in space
         )
 
     def plot_legend(self) -> None:
