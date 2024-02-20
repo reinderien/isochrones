@@ -101,6 +101,7 @@ class Hemisphere(NamedTuple):
 
     def plot_common(
         self,
+        dusk: Nightshade,
         night: Nightshade,
         utcnow: datetime,
     ) -> None:
@@ -108,6 +109,7 @@ class Hemisphere(NamedTuple):
 
         self.ax.set_title(f'{self.name} hemisphere')
         self.ax.stock_img()
+        self.ax.add_feature(dusk, zorder=5)
         self.ax.add_feature(night, zorder=5)
         self.ax.gridlines()
 
@@ -196,9 +198,10 @@ def plot_spherical(
         name='Kaaba', index=2, coord=KAABA_COORD, endpoint=home_coord,
         figure=fig, local_timezone=KAABA_TIMEZONE, geodetic=home_hemi.geodetic)
 
-    night = Nightshade(date=utcnow)
-    kaaba_hemi.plot_common(night=night, utcnow=utcnow)
-    home_hemi.plot_common(night=night, utcnow=utcnow)
+    dusk = Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33)
+    night = Nightshade(date=utcnow, delta=2, refraction=-18, alpha=0.33)
+    kaaba_hemi.plot_common(utcnow=utcnow, dusk=dusk, night=night)
+    home_hemi.plot_common(utcnow=utcnow, dusk=dusk, night=night)
     kaaba_hemi.plot_salah_meridians(utcnow=utcnow)
     home_hemi.plot_salah_meridians(utcnow=utcnow)
     home_hemi.plot_heading(utcnow=utcnow)
