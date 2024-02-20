@@ -140,7 +140,7 @@ class Hemisphere(NamedTuple):
     ) -> None:
         """
         Plot the common elements: the surface bitmap, night shading, the geodetic between the prayer
-        location and the kaaba, and the time at the centre.
+        location and the Kaaba, and the time at the centre.
         :param dusk: to shade between sunset/sunrise and dawn/dusk; low refractive correction
         :param night: to shade full darkness; high refractive correction
         """
