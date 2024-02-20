@@ -87,6 +87,7 @@ class Prayer(NamedTuple):
 PRAYERS = (
     Prayer(name='Fajr', angle=-18, pm=False, colour='orange'),
     Prayer(name='Dhuhr', angle=+90, pm=True, colour='yellow'),
+    # Asr: todo; uses a different formula
     Prayer(name='Maghrib', angle=-0.833, pm=True, colour='purple'),
     Prayer(name='Isha', angle=-18, pm=True, colour='blue'),
 )
