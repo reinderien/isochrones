@@ -11,27 +11,30 @@ from cartopy.geodesic import Geodesic
 from cartopy.mpl.geoaxes import GeoAxes
 from matplotlib import pyplot as plt
 from matplotlib.patches import Arc
+from shapely import Point, Polygon
 
 # Location and time zone of the Kaaba in Mecca
 KAABA_COORD = (39.826167, 21.4225)
 KAABA_TIMEZONE = ZoneInfo('Asia/Riyadh')
 
-# Night/day graph colours
+# Day/night graph colours
 GEODETIC_COLOUR: tuple[str, str] = ('green', 'lightgreen')
 FEATURE_COLOUR: tuple[str, str] = ('black', 'white')
 ANNOTATE_COLOUR: tuple[str, str] = ('black', 'white')
 HEADING_COLOUR: tuple[str, str] = ('red', 'red')
 
 
-def time_colour(local_now: datetime, colours: tuple[str, str]) -> str:
-    """
-    Based on the time, choose light or dark colours for contrast.
-    Hacky and hard-coded; could actually pay attention to night data instead.
-    """
+def check_contains_night(coord: tuple[float, float], night: Nightshade) -> bool:
+    geom: Polygon
+    geom, = night.geometries()
+    point = Point(coord)
+    return geom.contains(point)
+
+
+def time_colour(is_night: bool, colours: tuple[str, str]) -> str:
+    """Based on the time, choose light or dark colours for contrast."""
     day, night = colours
-    if 6 <= local_now.hour < 18:
-        return day
-    return night
+    return night if is_night else day
 
 
 def load_home() -> tuple[float, float]:
@@ -59,7 +62,7 @@ class Prayer(NamedTuple):
         :return: A 2*n array of x, y coordinates in degrees; the boundary of "night" where the
                  darkness level is controlled by self.angle.
         """
-        night = Nightshade(refraction=self.angle, date=utcnow, delta=2)
+        night = Nightshade(date=utcnow, delta=2, refraction=self.angle)
         geom, = night.geometries()
         xarray: array
         yarray: array
@@ -132,11 +135,26 @@ class Hemisphere(NamedTuple):
             name=name, coord=coord, endpoint=endpoint, crs=crs, ax=ax, timezone=local_timezone,
             geodetic=geodetic or Geodetic(globe=crs.globe))
 
-    def plot_common(
+    def plot(
         self,
         dusk: Nightshade,
         night: Nightshade,
         utcnow: datetime,
+        include_heading: bool = False,
+    ) -> None:
+        local_now = utcnow.astimezone(self.timezone)
+        is_night = check_contains_night(night=dusk, coord=self.coord)
+        self.plot_common(dusk=dusk, night=night, local_now=local_now, is_night=is_night)
+        self.plot_prayer_isochrones(utcnow=utcnow)
+        if include_heading:
+            self.plot_heading(is_night=is_night)
+
+    def plot_common(
+        self,
+        dusk: Nightshade,
+        night: Nightshade,
+        local_now: datetime,
+        is_night: bool,
     ) -> None:
         """
         Plot the common elements: the surface bitmap, night shading, the geodetic between the prayer
@@ -144,7 +162,6 @@ class Hemisphere(NamedTuple):
         :param dusk: to shade between sunset/sunrise and dawn/dusk; low refractive correction
         :param night: to shade full darkness; high refractive correction
         """
-        local_now = utcnow.astimezone(self.timezone)
 
         self.ax.set_title(f'{self.name} hemisphere')
         self.ax.stock_img()
@@ -156,20 +173,20 @@ class Hemisphere(NamedTuple):
             [self.coord[0], self.endpoint[0]],
             [self.coord[1], self.endpoint[1]],
             transform=self.geodetic, zorder=10, label='Qibla',
-            c=self.time_colour(local_now, GEODETIC_COLOUR),
+            c=time_colour(is_night, GEODETIC_COLOUR),
         )
 
         self.ax.scatter(
             [self.coord[0]], [self.coord[1]],
             transform=self.geodetic, zorder=11, marker='+',
-            c=self.time_colour(local_now, FEATURE_COLOUR),
+            c=time_colour(is_night, FEATURE_COLOUR),
         )
 
         self.ax.text(
             x=self.coord[0], y=self.coord[1], rotation=270,
             s=local_now.strftime('%Y-%m-%d %H:%M:%S %z'),
             transform=self.geodetic, zorder=12, ha='left', va='top',
-            color=self.time_colour(local_now, ANNOTATE_COLOUR),
+            color=time_colour(is_night, ANNOTATE_COLOUR),
         )
 
     def plot_prayer_isochrones(self, utcnow: datetime) -> None:
@@ -197,12 +214,11 @@ class Hemisphere(NamedTuple):
         )
         return distance, here_azimuth
 
-    def plot_heading(self, utcnow: datetime) -> None:
+    def plot_heading(self, is_night: bool) -> None:
         """
         Plot a 'north' indicator, a heading arc from north to the geodesic, and the departing
         heading in degrees
         """
-        local_now = utcnow.astimezone(self.timezone)
         distance, here_azimuth = self.inverse_geodesic()
 
         north = 0
@@ -210,19 +226,19 @@ class Hemisphere(NamedTuple):
             [self.coord[0], self.coord[0]],
             [self.coord[1], self.coord[1] + 20],
             transform=self.geodetic, zorder=10,
-            c=self.time_colour(local_now, HEADING_COLOUR),
+            c=time_colour(is_night, HEADING_COLOUR),
         )
         self.ax.add_patch(Arc(
             xy=self.coord, width=10, height=10,
             transform=self.geodetic, zorder=10,
             theta1=90 - here_azimuth, theta2=90 - north,
-            color=self.time_colour(local_now, HEADING_COLOUR),
+            color=time_colour(is_night, HEADING_COLOUR),
         ))
 
         self.ax.text(
             x=self.coord[0], y=self.coord[1] + 6, s=f'{here_azimuth:.1f}°',
             transform=self.geodetic, zorder=12,
-            color=self.time_colour(local_now, ANNOTATE_COLOUR),
+            color=time_colour(is_night, ANNOTATE_COLOUR),
         )
         self.ax.text(
             x=0.92, y=0.82,
@@ -260,11 +276,8 @@ def plot_spherical(
 
     dusk = Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33)
     night = Nightshade(date=utcnow, delta=2, refraction=-18, alpha=0.33)
-    kaaba_hemi.plot_common(utcnow=utcnow, dusk=dusk, night=night)
-    home_hemi.plot_common(utcnow=utcnow, dusk=dusk, night=night)
-    kaaba_hemi.plot_prayer_isochrones(utcnow=utcnow)
-    home_hemi.plot_prayer_isochrones(utcnow=utcnow)
-    home_hemi.plot_heading(utcnow=utcnow)
+    kaaba_hemi.plot(utcnow=utcnow, dusk=dusk, night=night)
+    home_hemi.plot(utcnow=utcnow, dusk=dusk, night=night, include_heading=True)
     home_hemi.plot_legend()
 
     return fig

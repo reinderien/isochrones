@@ -2,4 +2,5 @@ cartopy
 matplotlib
 numpy
 scipy
+shapely
 tzdata
