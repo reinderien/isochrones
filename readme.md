@@ -1,5 +1,5 @@
 Introduction
-------------
+============
 
 This is a project to explore astro-geological calculation and visualisation for
 Muslim prayer times. It's not meant to be authoritative (either scientifically
@@ -7,11 +7,15 @@ or religiously); it's only for fun and interest. It's written from a
 perspective having only an introductory familiarity with the complex and
 nuanced Muslim praxis and with astrodynamics.
 
-Terminology
------------
+
+Theory and terms
+================
 
 [Salah](https://en.wikipedia.org/wiki/Salah) (صَلَاة)
 is the practice of daily Muslim prayer.
+
+Geodesics
+---------
 
 The [Kaaba](https://en.wikipedia.org/wiki/Kaaba) (ٱلْكَعْبَة)
 in [Mecca](https://en.wikipedia.org/wiki/Mecca) (مكة),
@@ -31,11 +35,14 @@ The [orthographic projection](https://en.wikipedia.org/wiki/Orthographic_project
 is convenient because it is easy to understand, appears to the viewer as if
 they are viewing one
 [hemisphere](https://en.wikipedia.org/wiki/Hemispheres_of_Earth)
-of a globe, and draws all geodesics through the centre as straight lines that
-otherwise appear curved on
+of a 3D globe, and draws all geodesics through the centre as straight lines
+that  otherwise appear curved on
 [non-azimuthal](https://en.wikipedia.org/wiki/Map_projection#Azimuthal_.28projections_onto_a_plane.29)
 projections. Thus, this program draws two hemispheres, one centred on the
 user's home location and one on the Kaaba.
+
+Reference frames and time
+-------------------------
 
 The typical five daily salah prayers are
 
@@ -72,14 +79,12 @@ least four different kinds of pole:
 - The [ecliptic (or orbital) poles](https://en.wikipedia.org/wiki/Orbital_pole#Ecliptic_pole)
   sit on the [normal](https://en.wikipedia.org/wiki/Normal_(geometry)) to the
   solar system [orbital plane](https://en.wikipedia.org/wiki/Ecliptic). The
-  boundary of day and night will always intersect the ecliptic poles, with some
-  minor difference due to [diffraction](https://en.wikipedia.org/wiki/Dawn).
-  The ecliptic moves through an annual cycle. The ecliptic pole for the current
-  day of year is
-  [gimbal-locked](https://en.wikipedia.org/wiki/Gimbal_lock), implying an
-  undefined prayer schedule at that location;
-  [fatwa 2769](https://islamqa.info/en/answers/5842/how-to-pray-and-fast-in-countries-where-the-day-or-night-is-continuous)
-  attempted to clear this ambiguity.
+  boundary of day and night will always intersect the ecliptic poles, before
+  correcting for [diffraction](https://en.wikipedia.org/wiki/Dawn).
+  The ecliptic moves through an annual cycle.
+
+Isochrones
+----------
 
 At any given time, for a specific prayer, there is one curve across the Earth
 where all points on that curve satisfy the solar conditions for that prayer.
@@ -89,26 +94,51 @@ celestial and ecliptic poles were aligned, then prayer isochrones would be
 rotational frame. However, since the Earth's rotation has an
 [axial tilt](https://en.wikipedia.org/wiki/Axial_tilt) or _ecliptic obliquity_,
 the poles are offset by about 23° and the isochrones are actually _ecliptic_
-meridians extending to the ecliptic poles. This has the effect of changing
-prayer times through the year. Further, since all of the prayer definitions
-need various amounts of angular correction to account for refraction, they are
-not really meridians; they're geodesics offset from the ecliptic poles.
+meridians extending to the ecliptic poles, not the terrestrial poles. This has
+the effect of changing prayer times through the year.
+
+Further, since all of the prayer definitions need various amounts of angular
+correction to account for refraction, they are not really meridians. They're
+geodesics offset (sometimes significantly, up to 20-some degrees) from the
+ecliptic poles.
+
+Degenerate locations
+--------------------
+
+The ecliptic poles for the current day of year are
+[gimbal-locked](https://en.wikipedia.org/wiki/Gimbal_lock), which implies an
+undefined prayer schedule at that location: it is both always time for zuhr and
+never time for zuhr. At this location, the sun circles the horizon but never
+rises or sets.
+
+There are two degenerate polar regions; whether they appear in the north or
+south depends on the time of year. In one region spanning from an ecliptic pole
+to the terminus of the fajr/isha geodesics, it is always dark but never
+dark enough to meet the refraction threshold for fajr and isha, so fajr and
+isha cannot happen. In the other region bounded by the other ecliptic pole, it
+is always bright, the sun never sets, and fajr and isha still cannot happen.
+
+[Fatwa 2769](https://islamqa.info/en/answers/5842/how-to-pray-and-fast-in-countries-where-the-day-or-night-is-continuous)
+attempted to clear these ambiguities.
+
 
 Implementation
---------------
+==============
 
-This code follows the schedule definitions from
+This code follows (some of the) schedule definitions from
 [Hamid's prayer time guide](http://www.praytimes.org/calculation/).
 
+
 Setup
------
+=====
 
 Install third-party packages via
 
 `pip install -r requirements.txt`
 
+
 Usage
------
+=====
 
 Populate `.home.json` with the location of prayer, to look like
 
