@@ -230,7 +230,12 @@ class AsrPrayer(Prayer):
                 np.cos(sun.lambda_ecliptic) * np.cos(sun.delta_sun)
             )
         )
-        return
+        y = np.linspace(-90, 90, 181)
+        xyz = globe_crs.transform_points(
+            x=np.full_like(a=y, fill_value=180 + np.rad2deg(A)),
+            y=y, src_crs=sun.rotated_pole,
+        ).T
+        return xyz[:-1]
 
 
 # These definitions can vary significantly; see e.g.
