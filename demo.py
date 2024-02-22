@@ -1,11 +1,8 @@
-import ast
-import importlib.util
-import inspect
 import json
 from array import array
 from dataclasses import dataclass
 from datetime import datetime, timezone, tzinfo
-from typing import NamedTuple, Protocol
+from typing import NamedTuple
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -93,51 +90,6 @@ class AnglePrayer(Prayer):
         return xy
 
 
-class SolarPositionCall(Protocol):
-    def __call__(self, date: datetime) -> dict[str, float]:
-        ...
-
-
-def patch_solar_position() -> SolarPositionCall:
-    tree = compile(
-        source=inspect.getsource(_solar_position),
-        filename='nightshade.patch.py',
-        mode='exec', flags=ast.PyCF_ONLY_AST,
-        dont_inherit=1, optimize=-1,
-    )
-
-    class ReturnAll(ast.NodeTransformer):
-        def visit_Return(self, node: ast.Return) -> ast.stmt:
-            return ast.Return(
-                value=ast.Call(
-                    func=ast.Name(id='locals', ctx=ast.Load()),
-                    args=[], keywords=[],
-                ),
-            )
-
-    code = compile(
-        source=ast.fix_missing_locations(
-            ReturnAll().visit(tree)),
-        filename='nightshade_patch.py',
-        mode='exec', flags=0,
-        dont_inherit=1, optimize=-1,
-    )
-    spec = importlib.util.spec_from_loader(name='nightshade_patch', loader=None)
-    nightshade_patch = importlib.util.module_from_spec(spec)
-    inner_globals = nightshade_patch.__dict__
-    inner_globals.update({
-        '__builtins__': {'locals': locals},
-        '_julian_day': _julian_day,
-        'np': np,
-    })
-    inner_locals = {}
-    exec(code, inner_globals, inner_locals)
-    return inner_locals['_solar_position']
-
-
-solar_position = patch_solar_position()
-
-
 class SolarPosition(NamedTuple):
     """
     hamid           nightshade
@@ -161,14 +113,76 @@ class SolarPosition(NamedTuple):
     epsilon: float          # e (ecliptic obliquity)
     delta_sun: float        # D (declination)
     theta_GMST: float       # Greenwich mean sidereal time (seconds)
-    numerator: float        # for RA
-    denominator: float      # for RA
     alpha_sun: float        # RA (right ascension)
     lon: float              # opposite of Greenwich Hour Angle (GHA)
 
     @classmethod
     def from_time(cls, utcnow: datetime) -> 'SolarPosition':
-        return cls(**solar_position(date=utcnow))
+        """
+        Adaptation of cartopy.feature.nightshade._solar_position but in rad"""
+
+        # Centuries from J2000
+        T_UT1 = (_julian_day(utcnow) - 2_451_545.0)/36_525
+
+        # solar longitude (rad)
+        lambda_M_sun = (4.894950420143297 + 628.3319872064915*T_UT1) % (2*np.pi)
+
+        # solar anomaly (rad)
+        M_sun = (6.240035938744247 + 628.3019560241842*T_UT1) % (2*np.pi)
+
+        # ecliptic longitude (rad)
+        lambda_ecliptic = (
+            + lambda_M_sun
+            + 0.03341723399649053 * np.sin(M_sun)
+            + 3.4897235311083654e-4 * np.sin(M_sun * 2)
+        )
+
+        # obliquity of the ecliptic (epsilon in Vallado's notation)
+        epsilon = 0.4090928022830742 - 2.2696610658784662e-4*T_UT1
+
+        # declination of the sun
+        delta_sun = np.arcsin(
+            np.sin(epsilon) * np.sin(lambda_ecliptic)
+        )
+
+        # Greenwich mean sidereal time (seconds)
+        theta_GMST = (
+            + 67_310.54841
+            + (876_600*3_600 + 8_640_184.812866)*T_UT1
+            + 0.093104 * T_UT1**2
+            - 6.2e-6 * T_UT1**3
+        )
+
+        # Convert to rad
+        theta_GMST = (theta_GMST % 86_400) * 7.27220521664304e-05
+
+        # Right ascension calculations
+        numerator = (
+            np.cos(epsilon) * np.sin(lambda_ecliptic)
+            / np.cos(delta_sun)
+        )
+        denominator = np.cos(lambda_ecliptic) / np.cos(delta_sun)
+        alpha_sun = np.arctan2(numerator, denominator)
+
+        # longitude is opposite of Greenwich Hour Angle (GHA)
+        # GHA == theta_GMST - alpha_sun
+        lon = alpha_sun - theta_GMST
+        if lon < -np.pi:
+            lon += 2*np.pi
+
+        return cls(
+            date=utcnow, T_UT1=T_UT1, lambda_M_sun=lambda_M_sun, M_sun=M_sun,
+            lambda_ecliptic=lambda_ecliptic, epsilon=epsilon, delta_sun=delta_sun,
+            theta_GMST=theta_GMST, alpha_sun=alpha_sun,  lon=lon,
+        )
+
+    def test(self) -> None:
+        comparables = _solar_position(self.date)
+        assert np.allclose(
+            a=np.deg2rad(comparables),
+            b=(self.delta_sun, self.lon),
+            rtol=0, atol=1e-12,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +191,7 @@ class AsrPrayer(Prayer):
 
     def isochrone(self, globe_crs: CRS, utcnow: datetime) -> np.ndarray:
         sun = SolarPosition.from_time(utcnow=utcnow)
+        sun.test()
 
         # www.praytimes.org/calculation#Asr
         A = np.arccos(
