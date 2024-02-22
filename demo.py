@@ -1,12 +1,16 @@
+import ast
+import importlib.util
+import inspect
 import json
 from array import array
+from dataclasses import dataclass
 from datetime import datetime, timezone, tzinfo
-from typing import NamedTuple
+from typing import NamedTuple, Protocol
 from zoneinfo import ZoneInfo
 
 import numpy as np
 from cartopy.crs import CRS, Geodetic, Orthographic
-from cartopy.feature.nightshade import Nightshade
+from cartopy.feature.nightshade import Nightshade, _julian_day, _solar_position
 from cartopy.geodesic import Geodesic
 from cartopy.mpl.geoaxes import GeoAxes
 from matplotlib import pyplot as plt
@@ -46,13 +50,20 @@ def load_home() -> tuple[float, float]:
     return coords['lon'], coords['lat']
 
 
-class Prayer(NamedTuple):
+@dataclass(frozen=True)
+class Prayer:
     """One salah prayer definition"""
-
     name: str     # prayer name in romanized Arabic
+    colour: str   # time-invariant graphing colour
+
+    def isochrone(self, globe_crs: CRS, utcnow: datetime) -> np.ndarray:
+        raise NotImplementedError()
+
+
+@dataclass(frozen=True, slots=True)
+class AnglePrayer(Prayer):
     angle: float  # degrees after sunrise or before sunset
     pm: bool      # true for any time after noon
-    colour: str   # time-invariant graphing colour
 
     def isochrone(self, globe_crs: CRS, utcnow: datetime) -> np.ndarray:
         """
@@ -82,14 +93,117 @@ class Prayer(NamedTuple):
         return xy
 
 
+class SolarPositionCall(Protocol):
+    def __call__(self, date: datetime) -> dict[str, float]:
+        ...
+
+
+def patch_solar_position() -> SolarPositionCall:
+    tree = compile(
+        source=inspect.getsource(_solar_position),
+        filename='nightshade.patch.py',
+        mode='exec', flags=ast.PyCF_ONLY_AST,
+        dont_inherit=1, optimize=-1,
+    )
+
+    class ReturnAll(ast.NodeTransformer):
+        def visit_Return(self, node: ast.Return) -> ast.stmt:
+            return ast.Return(
+                value=ast.Call(
+                    func=ast.Name(id='locals', ctx=ast.Load()),
+                    args=[], keywords=[],
+                ),
+            )
+
+    code = compile(
+        source=ast.fix_missing_locations(
+            ReturnAll().visit(tree)),
+        filename='nightshade_patch.py',
+        mode='exec', flags=0,
+        dont_inherit=1, optimize=-1,
+    )
+    spec = importlib.util.spec_from_loader(name='nightshade_patch', loader=None)
+    nightshade_patch = importlib.util.module_from_spec(spec)
+    inner_globals = nightshade_patch.__dict__
+    inner_globals.update({
+        '__builtins__': {'locals': locals},
+        '_julian_day': _julian_day,
+        'np': np,
+    })
+    inner_locals = {}
+    exec(code, inner_globals, inner_locals)
+    return inner_locals['_solar_position']
+
+
+solar_position = patch_solar_position()
+
+
+class SolarPosition(NamedTuple):
+    """
+    hamid           nightshade
+    -----           ----------
+    jd              _julian_day
+    d               T_UT1 (j2000)
+    q               lambda_M_sun (solar longitude)
+    g               M_sun (solar anomaly)
+    L               lambda_ecliptic (ecliptic longitude)
+    e               epsilon (ecliptic obliquity)
+    D               delta_sun (declination)
+    RA              alpha_sun (right ascension)
+    alpha           refraction
+    """
+    # nightshade.py         # Hamid guide
+    date: datetime          # passed into _julian_day
+    T_UT1: float            # d (j2000)
+    lambda_M_sun: float     # q (solar longitude)
+    M_sun: float            # g (solar anomaly)
+    lambda_ecliptic: float  # L (ecliptic longitude)
+    epsilon: float          # e (ecliptic obliquity)
+    delta_sun: float        # D (declination)
+    theta_GMST: float       # Greenwich mean sidereal time (seconds)
+    numerator: float        # for RA
+    denominator: float      # for RA
+    alpha_sun: float        # RA (right ascension)
+    lon: float              # opposite of Greenwich Hour Angle (GHA)
+
+    @classmethod
+    def from_time(cls, utcnow: datetime) -> 'SolarPosition':
+        return cls(**solar_position(date=utcnow))
+
+
+@dataclass(frozen=True, slots=True)
+class AsrPrayer(Prayer):
+    shadow: float
+
+    def isochrone(self, globe_crs: CRS, utcnow: datetime) -> np.ndarray:
+        sun = SolarPosition.from_time(utcnow=utcnow)
+
+        # www.praytimes.org/calculation#Asr
+        A = np.arccos(
+            (
+                np.sin(
+                    np.arctan(  # arccot(1/x) = arctan(x)
+                        1/(
+                            self.shadow + np.tan(sun.lambda_ecliptic - sun.delta_sun)
+                        )
+                    )
+                )
+                - np.sin(sun.lambda_ecliptic) * np.sin(sun.delta_sun)
+            ) / (
+                np.cos(sun.lambda_ecliptic) * np.cos(sun.delta_sun)
+            )
+        )
+        return
+
+
 # These definitions can vary significantly; see e.g.
 # http://www.praytimes.org/calculation#Fajr_and_Isha
 PRAYERS = (
-    Prayer(name='Fajr', angle=-18, pm=False, colour='orange'),
-    Prayer(name='Dhuhr', angle=+90, pm=True, colour='yellow'),
-    # Asr: todo; uses a different formula
-    Prayer(name='Maghrib', angle=-0.833, pm=True, colour='purple'),
-    Prayer(name='Isha', angle=-18, pm=True, colour='blue'),
+    AnglePrayer(name='Fajr' ,   colour='orange', angle=-18, pm=False),
+    AnglePrayer(name='Dhuhr',   colour='yellow', angle=+90, pm=True),
+      AsrPrayer(name='Asr',     colour='lightblue', shadow=1),
+    AnglePrayer(name='Maghrib', colour='purple', angle=-0.833, pm=True),
+    AnglePrayer(name='Isha',    colour='blue'  , angle=-18, pm=True),
 )
 
 
