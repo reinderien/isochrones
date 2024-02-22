@@ -6,7 +6,7 @@ from typing import NamedTuple
 from zoneinfo import ZoneInfo
 
 import numpy as np
-from cartopy.crs import CRS, Geodetic, Orthographic
+from cartopy.crs import CRS, Geodetic, Orthographic, RotatedPole
 from cartopy.feature.nightshade import Nightshade, _julian_day, _solar_position
 from cartopy.geodesic import Geodesic
 from cartopy.mpl.geoaxes import GeoAxes
@@ -113,8 +113,11 @@ class SolarPosition(NamedTuple):
     epsilon: float          # e (ecliptic obliquity)
     delta_sun: float        # D (declination)
     theta_GMST: float       # Greenwich mean sidereal time (seconds)
-    alpha_sun: float        # RA (right ascension)
-    lon: float              # opposite of Greenwich Hour Angle (GHA)
+    alpha_sun: float        # RA (right ascension) aka. lat
+    pole_lat: float
+    pole_lon: float         # opposite of Greenwich Hour Angle (GHA)
+    central_lon: float
+    rotated_pole: RotatedPole
 
     @classmethod
     def from_time(cls, utcnow: datetime) -> 'SolarPosition':
@@ -170,17 +173,36 @@ class SolarPosition(NamedTuple):
         if lon < -np.pi:
             lon += 2*np.pi
 
+        # need longitude (opposite direction)
+        lat = alpha_sun
+        pole_lon = lon
+        if lat > 0:
+            pole_lat = lat - 0.5*np.pi
+            central_lon = np.pi
+        else:
+            pole_lat = lat + 0.5*np.pi
+            central_lon = 0
+
+        # Skip omega0: we don't have refraction (alpha) here, and we don't care about sunrise/
+        # sunset in this context
+
         return cls(
             date=utcnow, T_UT1=T_UT1, lambda_M_sun=lambda_M_sun, M_sun=M_sun,
             lambda_ecliptic=lambda_ecliptic, epsilon=epsilon, delta_sun=delta_sun,
-            theta_GMST=theta_GMST, alpha_sun=alpha_sun,  lon=lon,
+            theta_GMST=theta_GMST, alpha_sun=alpha_sun,
+            pole_lon=pole_lon, pole_lat=pole_lat, central_lon=central_lon,
+            rotated_pole=RotatedPole(
+                pole_latitude=np.rad2deg(pole_lat),
+                pole_longitude=np.rad2deg(pole_lon),
+                central_rotated_longitude=np.rad2deg(central_lon),
+            ),
         )
 
     def test(self) -> None:
         comparables = _solar_position(self.date)
         assert np.allclose(
             a=np.deg2rad(comparables),
-            b=(self.delta_sun, self.lon),
+            b=(self.delta_sun, self.pole_lon),
             rtol=0, atol=1e-12,
         )
 
