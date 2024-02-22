@@ -25,11 +25,16 @@ ANNOTATE_COLOUR: tuple[str, str] = ('black', 'white')
 HEADING_COLOUR: tuple[str, str] = ('red', 'red')
 
 
-def check_contains_night(coord: tuple[float, float], night: Nightshade) -> bool:
+def check_contains_night(
+    local_now: datetime,
+    coord: tuple[float, float],
+    night: Nightshade,
+) -> bool:
     geom: Polygon
     geom, = night.geometries()
     point = Point(coord)
-    return geom.contains(point)
+    # This doesn't work well at all. Maybe it doesn't account for occlusion?
+    return geom.contains(point) and not (6 <= local_now.hour <= 18)
 
 
 def time_colour(is_night: bool, colours: tuple[str, str]) -> str:
@@ -243,7 +248,7 @@ class AsrPrayer(Prayer):
 PRAYERS = (
     AnglePrayer(name='Fajr' ,   colour='orange', angle=-18, pm=False),
     AnglePrayer(name='Dhuhr',   colour='yellow', angle=+90, pm=True),
-      AsrPrayer(name='Asr',     colour='lightblue', shadow=1),
+      AsrPrayer(name='Asr',     colour='fuchsia', shadow=1),
     AnglePrayer(name='Maghrib', colour='purple', angle=-0.833, pm=True),
     AnglePrayer(name='Isha',    colour='blue'  , angle=-18, pm=True),
 )
@@ -300,7 +305,7 @@ class Hemisphere(NamedTuple):
         include_heading: bool = False,
     ) -> None:
         local_now = utcnow.astimezone(self.timezone)
-        is_night = check_contains_night(night=dusk, coord=self.coord)
+        is_night = check_contains_night(night=dusk, local_now=local_now, coord=self.coord)
         self.plot_common(dusk=dusk, night=night, local_now=local_now, is_night=is_night)
         self.plot_prayer_isochrones(utcnow=utcnow)
         if include_heading:
