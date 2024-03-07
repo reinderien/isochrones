@@ -32,7 +32,8 @@ def inverse_geodesic(
 ) -> tuple[float, float]:
     """
     Calculate the inverse geodesic parameters between the prayer location and the Kaaba. This
-    uses WGS-84 and not the spherical CRS - so we use our own Geodesic instead of self.geodesic.
+    uses WGS-84 and not the spherical CRS - so we use our own Geodesic instead of the spherical
+    geodesic instance in Hemisphere.
     :return: Distance in metres, and departing angle in degrees counterclockwise from east.
     """
     geodesic = Geodesic()
