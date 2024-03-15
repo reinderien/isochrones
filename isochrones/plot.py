@@ -194,8 +194,9 @@ def plot_spherical(
         name='Kaaba', index=2, coord=KAABA_COORD, endpoint=home_coord,
         figure=fig, local_timezone=KAABA_TIMEZONE, geodetic=home_hemi.geodetic)
 
+    # this angle should be made to match the angles in the prayer database
+    night = Nightshade(date=utcnow, delta=2, refraction=-15, alpha=0.33)
     dusk = Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33)
-    night = Nightshade(date=utcnow, delta=2, refraction=-18, alpha=0.33)
     kaaba_hemi.plot(utcnow=utcnow, dusk=dusk, night=night)
     home_hemi.plot(utcnow=utcnow, dusk=dusk, night=night, include_heading=True)
     home_hemi.plot_legend()
