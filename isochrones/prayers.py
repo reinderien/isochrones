@@ -60,20 +60,22 @@ class ShadowPrayer(Prayer):
         sun = SolarPosition.from_time(utcnow=utcnow)
         sun.test()
         A = sun.shadow_angle(shadow=self.shadow)
-        y = np.linspace(-90, 90, 181)
+        y = np.linspace(start=-90, stop=+90, num=91)
+        x = np.full_like(a=y, fill_value=180 + np.rad2deg(A))
         xyz = globe_crs.transform_points(
-            x=np.full_like(a=y, fill_value=180 + np.rad2deg(A)),
-            y=y, src_crs=sun.rotated_pole,
+            x=x, y=y, src_crs=sun.rotated_pole,
         ).T
         return xyz[:-1]
 
 
 # These definitions can vary significantly; see e.g.
 # http://www.praytimes.org/calculation#Fajr_and_Isha
+# https://radhifadlillah.com/blog/2020-09-06-calculating-prayer-times/
+# 15/15 used in North America by ISNA.
 PRAYERS = (
-    RefractionPrayer(name='Fajr', colour='orange', angle=-18, pm=False),
+    RefractionPrayer(name='Fajr', colour='orange', angle=-15, pm=False),
     RefractionPrayer(name='Dhuhr', colour='yellow', angle=+90, pm=True),
     ShadowPrayer(name='Asr', colour='fuchsia', shadow=1),
-    RefractionPrayer(name='Maghrib', colour='purple', angle=-0.833, pm=True),
-    RefractionPrayer(name='Isha', colour='blue', angle=-18, pm=True),
+    RefractionPrayer(name='Maghrib', colour='purple', angle=-0.8333, pm=True),
+    RefractionPrayer(name='Isha', colour='blue', angle=-15, pm=True),
 )

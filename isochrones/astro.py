@@ -127,7 +127,7 @@ class SolarPosition(NamedTuple):
             lon += 2*np.pi
 
         # need longitude (opposite direction)
-        lat = alpha_sun
+        lat = delta_sun
         pole_lon = lon
         if lat > 0:
             pole_lat = lat - 0.5*np.pi
@@ -160,19 +160,22 @@ class SolarPosition(NamedTuple):
         )
 
     def shadow_angle(self, shadow: float) -> float:
-        # www.praytimes.org/calculation#Asr
-        A = np.arccos(
-            (
-                np.sin(
-                    np.arctan(  # arccot(1/x) = arctan(x)
-                        1/(
-                            shadow + np.tan(self.lambda_ecliptic - self.delta_sun)
-                        )
+        """
+        Based on www.praytimes.org/calculation#Asr
+        Return the angular difference in rad between solar noon and the 'asr'
+        """
+        arg = (
+            np.sin(
+                np.arctan(  # arccot(1/x) = arctan(x)
+                    1/(
+                        shadow + np.tan(self.lambda_ecliptic - self.delta_sun)
                     )
                 )
-                - np.sin(self.lambda_ecliptic) * np.sin(self.delta_sun)
-            ) / (
-                np.cos(self.lambda_ecliptic) * np.cos(self.delta_sun)
             )
+            - np.sin(self.lambda_ecliptic) * np.sin(self.delta_sun)
+        ) / (
+            np.cos(self.lambda_ecliptic) * np.cos(self.delta_sun)
         )
+        arg = np.clip(arg, a_min=-1, a_max=1)
+        A = np.arccos(arg)
         return A
