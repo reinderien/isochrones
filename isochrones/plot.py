@@ -7,7 +7,7 @@ from cartopy.mpl.geoaxes import GeoAxes
 from matplotlib import pyplot as plt
 from matplotlib.patches import Arc
 
-from .astro import KAABA_COORD, KAABA_TIMEZONE, check_contains_night, inverse_geodesic
+from .astro import KAABA_COORD, KAABA_TIMEZONE, check_contains_night, ecliptic_parallel, inverse_geodesic
 from .prayers import PRAYERS
 
 # Day/night graph colours
@@ -72,10 +72,14 @@ class Hemisphere(NamedTuple):
         night: Nightshade,
         utcnow: datetime,
         include_heading: bool = False,
+        parallel_on_self: bool = False,
     ) -> None:
         local_now = utcnow.astimezone(self.timezone)
         is_night = check_contains_night(night=dusk, local_now=local_now, coord=self.coord)
+        home = self.coord if parallel_on_self else self.endpoint
+
         self.plot_common(dusk=dusk, night=night, local_now=local_now, is_night=is_night)
+        self.plot_ecliptic_parallel(home=home, utcnow=utcnow)
         self.plot_prayer_isochrones(utcnow=utcnow)
         if include_heading:
             self.plot_heading(is_night=is_night)
@@ -118,6 +122,14 @@ class Hemisphere(NamedTuple):
             s=local_now.strftime('%Y-%m-%d %H:%M:%S %z'),
             transform=self.geodetic, zorder=12, ha='left', va='top',
             color=time_colour(is_night, ANNOTATE_COLOUR),
+        )
+
+    def plot_ecliptic_parallel(self, utcnow: datetime, home: tuple[float, float]) -> None:
+        xy = ecliptic_parallel(globe_crs=self.geodetic, utcnow=utcnow, home=home)
+        self.ax.plot(
+            *xy, transform=self.geodetic, zorder=9,
+            # label='ecliptic parallel',  # long and not particularly necessary
+            c='grey',
         )
 
     def plot_prayer_isochrones(self, utcnow: datetime) -> None:
@@ -198,7 +210,8 @@ def plot_spherical(
     night = Nightshade(date=utcnow, delta=2, refraction=-15, alpha=0.33)
     dusk = Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33)
     kaaba_hemi.plot(utcnow=utcnow, dusk=dusk, night=night)
-    home_hemi.plot(utcnow=utcnow, dusk=dusk, night=night, include_heading=True)
+    home_hemi.plot(utcnow=utcnow, dusk=dusk, night=night,
+                   include_heading=True, parallel_on_self=True)
     home_hemi.plot_legend()
 
     return fig

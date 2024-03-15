@@ -43,6 +43,27 @@ def inverse_geodesic(
     return distance, here_azimuth
 
 
+def ecliptic_parallel(
+    utcnow: datetime,
+    home: tuple[float, float],
+    globe_crs: CRS,
+) -> np.ndarray:
+    # 'home' is in the rotational frame already. We need to convert it to the
+    # ecliptic ("rotated pole") frame.
+    sun = SolarPosition.from_time(utcnow=utcnow)
+    (ex, ey, ez), = sun.rotated_pole.transform_points(
+        x=np.array(home[:1]),
+        y=np.array(home[1:]), src_crs=globe_crs,
+    )
+
+    x = np.linspace(-180, 180, 181)
+    xyz = globe_crs.transform_points(
+        x=x, y=np.full_like(a=x, fill_value=ey),
+        src_crs=sun.rotated_pole,
+    ).T
+    return xyz[:-1]
+
+
 class LonFromLat(Protocol):
     def __call__(self, sun: 'SolarPosition', y: np.ndarray) -> np.ndarray:
         ...
