@@ -9,24 +9,6 @@ from cartopy.feature.nightshade import Nightshade
 from .astro import SolarPosition
 
 
-def isochrone_from_noon_angle(globe_crs: CRS, utcnow: datetime, angle: float) -> np.ndarray:
-    """
-    :param globe_crs: The coordinate reference system of the globe, used when translating to the
-                      night-rotated coordinate system. Typically Geodetic.
-    :param utcnow: Timezone-aware datetime used to locate the sun
-    :param angle: Degrees after noon
-    :return: A 2*n array of x, y coordinates in degrees; the isochrone curve.
-    """
-    sun = SolarPosition.from_time(utcnow=utcnow)
-    sun.test()
-    y = np.linspace(start=-90, stop=+90, num=91)
-    x = np.full_like(a=y, fill_value=180 + angle)
-    xyz = globe_crs.transform_points(
-        x=x, y=y, src_crs=sun.rotated_pole,
-    ).T
-    return xyz[:-1]
-
-
 @dataclass(frozen=True)
 class Prayer:
     """One salah prayer definition"""
@@ -39,9 +21,15 @@ class Prayer:
 
 @dataclass(frozen=True, slots=True)
 class NoonPrayer(Prayer):
+    @staticmethod
+    def make_lon(sun: SolarPosition, y: np.ndarray) -> np.ndarray:
+        return np.zeros_like(y)
+
     def isochrone(self, globe_crs: CRS, utcnow: datetime) -> np.ndarray:
-        return isochrone_from_noon_angle(
-            globe_crs=globe_crs, utcnow=utcnow, angle=0,
+        sun = SolarPosition.from_time(utcnow=utcnow)
+        sun.test()
+        return sun.isochrone_from_noon_angle(
+            globe_crs=globe_crs, make_lon=self.make_lon,
         )
 
 
@@ -82,20 +70,15 @@ class RefractionPrayer(Prayer):
 class ShadowPrayer(Prayer):
     shadow: float
 
+    def make_lon(self, sun: SolarPosition, y: np.ndarray) -> np.ndarray:
+        return sun.shadow_angle(shadow=self.shadow, y=y)
+
     def isochrone(self, globe_crs: CRS, utcnow: datetime) -> np.ndarray:
         sun = SolarPosition.from_time(utcnow=utcnow)
         sun.test()
-
-        y = np.linspace(start=-90, stop=+90, num=91)
-        A = sun.shadow_angle(shadow=self.shadow, y=np.deg2rad(y))
-        x = 180 + np.rad2deg(A)
-
-        xyz = globe_crs.transform_points(
-            x=x, y=y, src_crs=sun.rotated_pole,
-        ).T
-        return xyz[:-1]
-
-
+        return sun.isochrone_from_noon_angle(
+            globe_crs=globe_crs, make_lon=self.make_lon,
+        )
 
 
 # These definitions can vary significantly; see e.g.

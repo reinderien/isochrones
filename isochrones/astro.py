@@ -1,9 +1,9 @@
 from datetime import datetime
-from typing import NamedTuple
+from typing import NamedTuple, Protocol
 from zoneinfo import ZoneInfo
 
 import numpy as np
-from cartopy.crs import RotatedPole
+from cartopy.crs import RotatedPole, CRS
 from cartopy.feature.nightshade import Nightshade, _julian_day, _solar_position
 from cartopy.geodesic import Geodesic
 from shapely import Point, Polygon
@@ -41,6 +41,11 @@ def inverse_geodesic(
         points=coord, endpoints=endpoint,
     )
     return distance, here_azimuth
+
+
+class LonFromLat(Protocol):
+    def __call__(self, sun: 'SolarPosition', y: np.ndarray) -> np.ndarray:
+        ...
 
 
 class SolarPosition(NamedTuple):
@@ -182,3 +187,21 @@ class SolarPosition(NamedTuple):
         # arg = np.clip(arg, a_min=-1, a_max=1)
         A = np.arccos(arg)
         return A
+
+    def isochrone_from_noon_angle(
+        self, globe_crs: CRS, make_lon: LonFromLat,
+    ) -> np.ndarray:
+        """
+        :param globe_crs: The coordinate reference system of the globe, used when translating to the
+                          night-rotated coordinate system. Typically Geodetic.
+        :param utcnow: Timezone-aware datetime used to locate the sun
+        :return: A 2*n array of x, y coordinates in degrees; the isochrone curve.
+        """
+        y = np.linspace(start=-np.pi/2, stop=+np.pi/2, num=91)
+        x = make_lon(sun=self, y=y)
+        xyz = globe_crs.transform_points(
+            x=np.rad2deg(x) + 180,
+            y=np.rad2deg(y),
+            src_crs=self.rotated_pole,
+        ).T
+        return xyz[:-1]
