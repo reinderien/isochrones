@@ -164,21 +164,20 @@ class SolarPosition(NamedTuple):
         Based on https://radhifadlillah.com/blog/2020-09-06-calculating-prayer-times/
         Return the angular difference in rad between solar noon and the 'asr'
         """
-        arg = (
-            np.sin(
-                np.arctan(  # arccot(1/x) = arctan(x)
-                    1/(
-                        shadow + np.tan(
-                            # np.abs(  # is this appropriate?
-                            y - self.delta_sun
-                        )
+        # The reference implementations rely on delta_sun (declination). Since
+        # we defer declination calculation to a transformation after this
+        # function, it's already accounted for, and any declination terms are
+        # replaced with sin(0)=0 and cos(0)=1.
+        arg = np.sin(
+            np.arctan(  # arccot(1/x) = arctan(x)
+                1/(
+                    shadow + np.tan(
+                        # np.abs(  # is this appropriate?
+                        y
                     )
                 )
             )
-            - np.sin(y) * np.sin(self.delta_sun)
-        ) / (
-            np.cos(y) * np.cos(self.delta_sun)
-        )
+        ) / np.cos(y)
         # Let the NaNs through.
         # arg = np.clip(arg, a_min=-1, a_max=1)
         A = np.arccos(arg)
