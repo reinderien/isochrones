@@ -10,10 +10,17 @@ from .astro import SolarPosition
 
 
 def isochrone_from_noon_angle(globe_crs: CRS, utcnow: datetime, angle: float) -> np.ndarray:
+    """
+    :param globe_crs: The coordinate reference system of the globe, used when translating to the
+                      night-rotated coordinate system. Typically Geodetic.
+    :param utcnow: Timezone-aware datetime used to locate the sun
+    :param angle: Degrees after noon
+    :return: A 2*n array of x, y coordinates in degrees; the isochrone curve.
+    """
     sun = SolarPosition.from_time(utcnow=utcnow)
     sun.test()
     y = np.linspace(start=-90, stop=+90, num=91)
-    x = np.full_like(a=y, fill_value=180 + np.rad2deg(angle))
+    x = np.full_like(a=y, fill_value=180 + angle)
     xyz = globe_crs.transform_points(
         x=x, y=y, src_crs=sun.rotated_pole,
     ).T
@@ -80,7 +87,7 @@ class ShadowPrayer(Prayer):
         sun.test()
         A = sun.shadow_angle(shadow=self.shadow)
         return isochrone_from_noon_angle(
-            globe_crs=globe_crs, utcnow=utcnow, angle=A,
+            globe_crs=globe_crs, utcnow=utcnow, angle=np.rad2deg(A),
         )
 
 
