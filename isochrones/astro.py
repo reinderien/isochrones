@@ -159,23 +159,27 @@ class SolarPosition(NamedTuple):
             rtol=0, atol=1e-12,
         )
 
-    def shadow_angle(self, shadow: float) -> float:
+    def shadow_angle(self, y: np.ndarray, shadow: float) -> np.ndarray:
         """
-        Based on www.praytimes.org/calculation#Asr
+        Based on https://radhifadlillah.com/blog/2020-09-06-calculating-prayer-times/
         Return the angular difference in rad between solar noon and the 'asr'
         """
         arg = (
             np.sin(
                 np.arctan(  # arccot(1/x) = arctan(x)
                     1/(
-                        shadow + np.tan(self.lambda_ecliptic - self.delta_sun)
+                        shadow + np.tan(
+                            # np.abs(  # is this appropriate?
+                            y - self.delta_sun
+                        )
                     )
                 )
             )
-            - np.sin(self.lambda_ecliptic) * np.sin(self.delta_sun)
+            - np.sin(y) * np.sin(self.delta_sun)
         ) / (
-            np.cos(self.lambda_ecliptic) * np.cos(self.delta_sun)
+            np.cos(y) * np.cos(self.delta_sun)
         )
-        arg = np.clip(arg, a_min=-1, a_max=1)
+        # Let the NaNs through.
+        # arg = np.clip(arg, a_min=-1, a_max=1)
         A = np.arccos(arg)
         return A

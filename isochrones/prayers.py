@@ -85,10 +85,17 @@ class ShadowPrayer(Prayer):
     def isochrone(self, globe_crs: CRS, utcnow: datetime) -> np.ndarray:
         sun = SolarPosition.from_time(utcnow=utcnow)
         sun.test()
-        A = sun.shadow_angle(shadow=self.shadow)
-        return isochrone_from_noon_angle(
-            globe_crs=globe_crs, utcnow=utcnow, angle=np.rad2deg(A),
-        )
+
+        y = np.linspace(start=-90, stop=+90, num=91)
+        A = sun.shadow_angle(shadow=self.shadow, y=np.deg2rad(y))
+        x = 180 + np.rad2deg(A)
+
+        xyz = globe_crs.transform_points(
+            x=x, y=y, src_crs=sun.rotated_pole,
+        ).T
+        return xyz[:-1]
+
+
 
 
 # These definitions can vary significantly; see e.g.
