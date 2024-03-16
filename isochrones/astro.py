@@ -204,9 +204,13 @@ class SolarPosition(NamedTuple):
                 )
             )
         ) / np.cos(y)
-        # Let the NaNs through.
+
+        # Let the NaNs through, but don't complain about them.
         # arg = np.clip(arg, a_min=-1, a_max=1)
-        A = np.arccos(arg)
+        is_valid = (arg >= -1) & (arg <= +1)
+        A = np.full_like(a=arg, fill_value=np.nan)
+        A[is_valid] = np.arccos(arg[is_valid])
+
         return A
 
     def isochrone_from_noon_angle(

@@ -1,6 +1,7 @@
 import itertools
+import time
 from dataclasses import dataclass
-from datetime import datetime, tzinfo
+from datetime import datetime, tzinfo, timezone, timedelta
 from typing import NamedTuple
 
 from cartopy.crs import Geodetic, Orthographic
@@ -9,6 +10,7 @@ from cartopy.feature.nightshade import Nightshade
 from cartopy.mpl.feature_artist import FeatureArtist
 from cartopy.mpl.geoaxes import GeoAxes
 from matplotlib import pyplot as plt
+from matplotlib.animation import FuncAnimation
 from matplotlib.collections import PathCollection
 from matplotlib.patches import Arc
 
@@ -369,13 +371,58 @@ def update_spherical(
 
 def plot_spherical(
     home_coord: tuple[float, float],
-    utcnow: datetime,
+    utcnow: datetime | None = None,
 ) -> plt.Figure:
     """
     Set up the figure and update it once, for a static plot
     :param home_coord: Home lon, lat in degrees
     :param utcnow: Universal, tz-aware 'now' timestamp
     """
+    if utcnow is None:
+        utcnow = datetime.now().astimezone(timezone.utc)
     fig, home_plot, kaaba_plot = setup_spherical(home_coord)
     update_spherical(home_plot=home_plot, kaaba_plot=kaaba_plot, utcnow=utcnow)
     return fig
+
+
+def animate_spherical_realtime(
+    home_coord: tuple[float, float],
+) -> tuple[plt.Figure, FuncAnimation]:
+    fig, home_plot, kaaba_plot = setup_spherical(home_coord)
+
+    def update(frame: int) -> tuple[plt.Artist, ...]:
+        return update_spherical(
+            home_plot=home_plot, kaaba_plot=kaaba_plot,
+            utcnow=datetime.now().astimezone(timezone.utc),
+        )
+
+    anim = FuncAnimation(
+        fig=fig, func=update, repeat=False, blit=True, cache_frame_data=False,
+        interval=500,
+    )
+    return fig, anim
+
+
+def animate_spherical_fast(
+    home_coord: tuple[float, float],
+    start_utc: datetime | None = None,
+    time_factor: float = 60*60,  # one hour per second
+) -> tuple[plt.Figure, FuncAnimation]:
+    if start_utc is None:
+        start_utc = datetime.now().astimezone(timezone.utc)
+
+    fig, home_plot, kaaba_plot = setup_spherical(home_coord)
+    frame_interval = timedelta(milliseconds=100)
+
+    def update(frame: int) -> tuple[plt.Artist, ...]:
+        virtual_time = start_utc + frame_interval*(time_factor*frame)
+        return update_spherical(
+            home_plot=home_plot, kaaba_plot=kaaba_plot,
+            utcnow=virtual_time,
+        )
+
+    anim = FuncAnimation(
+        fig=fig, func=update, repeat=False, blit=True, cache_frame_data=False,
+        interval=frame_interval/timedelta(milliseconds=1),
+    )
+    return fig, anim
