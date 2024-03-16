@@ -4,6 +4,7 @@ from datetime import datetime, tzinfo
 from typing import NamedTuple
 
 from cartopy.crs import Geodetic, Orthographic
+from cartopy.feature import ShapelyFeature
 from cartopy.feature.nightshade import Nightshade
 from cartopy.mpl.feature_artist import FeatureArtist
 from cartopy.mpl.geoaxes import GeoAxes
@@ -32,20 +33,20 @@ def time_colour(is_night: bool, colours: tuple[str, str]) -> str:
 
 class HemisphereData(NamedTuple):
     """
-    One hemisphere for graphing. Assumed spherical and not oblate because the orthographic
-    projection only accepts spherical. Printed figures like the inverse geodesic still use the more
-    accurate elliptical WGS-84.
+    One hemisphere's worth of invariant data for graphing. Assumed spherical and not oblate because
+    the orthographic projection only accepts spherical. Printed figures like the inverse geodesic
+    still use the more accurate elliptical WGS-84.
     """
 
     name: str                      # Hemisphere name, English or romanized Arabic
     coord: tuple[float, float]     # "here" lon, lat in degrees; hemisphere centred on this
     endpoint: tuple[float, float]  # "there" lon, lat in degrees; geodesic heads there
-    home: tuple[float, float]
+    home: tuple[float, float]      # "home" lon, lat in degrees; ecliptic parallel here
     crs: Orthographic              # Projective coordinate system for graphing
     geodetic: Geodetic             # Globe coordinate system; this one is spherical
     timezone: tzinfo | None        # None means local timezone. Used for date display.
-    parallel_on_self: bool
-    include_heading: bool
+    parallel_on_self: bool         # Is the ecliptic parallel on 'coord'?
+    include_heading: bool          # Do we include the geodesic heading on this plot?
 
     @classmethod
     def make(
@@ -60,7 +61,7 @@ class HemisphereData(NamedTuple):
     ) -> 'HemisphereData':
         """
         :param geodetic: if None, then a spherical geodetic will be made.
-        :return: A new Hemisphere.
+        :return: A new HemisphereData, invariant; no artist objects.
         """
         crs = Orthographic(
             central_longitude=coord[0],
@@ -76,34 +77,36 @@ class HemisphereData(NamedTuple):
 
 @dataclass(slots=True)
 class HemispherePlots:
-    data: HemisphereData
-    ax: GeoAxes                    # Plot on this
-    dusk_art: FeatureArtist
-    night_art: FeatureArtist
-    geodesic_art: plt.Line2D
-    origin_art: PathCollection
-    origin_time_art: plt.Text
-    parallel_art: plt.Line2D
-    prayer_art: tuple[plt.Line2D, ...]
-    heading_art: plt.Text | None
+    data: HemisphereData  # Hemisphere invariants
+
+    # Axes and artists that never get reassigned between frames, only updated.
+    ax: GeoAxes                 # Plot on this
+    dusk_art: FeatureArtist     # Dusk (outer, lighter) shading
+    night_art: FeatureArtist    # Night (inner, darker) shading
+    geodesic_art: plt.Line2D    # Geodesic "qibla" line, straight due to orthographic projn
+    origin_art: PathCollection  # Cross at "here"
+    origin_time_art: plt.Text   # Time text at "here"
+    parallel_art: plt.Line2D    # Ecliptic parallel through home
+    prayer_art: tuple[plt.Line2D, ...]  # All prayer isochrones
+    heading_art: plt.Text | None  # Heading text, if we have it
+
+    # This is the only state that changes referentially on this class. It's used to see whether
+    # night state has changed, in turn deciding whether to re-draw some day/night-coloured artists.
     is_night: bool | None = None
 
     @classmethod
     def make(
         cls,
         data: HemisphereData,
-        initial_dusk: Nightshade,
-        initial_night: Nightshade,
         figure: plt.Figure,
         index: int,
         n_axes: int = 2,
     ) -> 'HemispherePlots':
         """
-        :param data:
         :param index: of the axes within the figure.
         :param figure: to which the new axes will be added
         :param n_axes: in the figure. Typically two, for two hemispheres.
-        :return:
+        :return: A HemispherePlots ready for either plotting or animation.
         """
         nrows = 1
         ncols = n_axes
@@ -111,26 +114,30 @@ class HemispherePlots:
 
         cls.plot_invariants(data, ax)
 
-        dusk_art, night_art, geodesic_art, origin_art, origin_time_art = cls.setup_common(
-            ax=ax, data=data, initial_dusk=initial_dusk, initial_night=initial_night,
-        )
+        (
+            dusk_art, night_art, geodesic_art, origin_art, origin_time_art,
+        ) = cls.setup_common(ax=ax, data=data)
         parallel_art = cls.setup_ecliptic_parallel(ax=ax, data=data)
         prayer_art = cls.setup_prayer_isochrones(ax=ax, data=data)
         heading_art = cls.setup_heading(ax=ax, data=data) if data.include_heading else None
 
         return cls(
             data=data, ax=ax,
-            dusk_art=dusk_art, night_art=night_art, geodesic_art=geodesic_art, origin_art=origin_art,
-            origin_time_art=origin_time_art, parallel_art=parallel_art, prayer_art=prayer_art,
-            heading_art=heading_art,
+            dusk_art=dusk_art, night_art=night_art, geodesic_art=geodesic_art,
+            origin_art=origin_art, origin_time_art=origin_time_art, parallel_art=parallel_art,
+            prayer_art=prayer_art, heading_art=heading_art,
         )
 
     def update(
-        self,
-        dusk: Nightshade,
-        night: Nightshade,
-        utcnow: datetime,
+        self, dusk: Nightshade, night: Nightshade, utcnow: datetime,
     ) -> tuple[plt.Artist, ...]:
+        """
+        Update all artists as necessary, for either a static plot or one frame of an animation.
+        :param dusk: Outer, lighter shading at sunrise/sunset; no refractive correction
+        :param night: Inner, darker shading at dawn/dusk; high refractive correction
+        :param utcnow: Time used to compute ecliptic parallel and isochrones
+        :return: All changed artists.
+        """
         local_now = utcnow.astimezone(self.data.timezone)
         is_night = check_contains_night(night=dusk, local_now=local_now, coord=self.data.coord)
 
@@ -149,29 +156,26 @@ class HemispherePlots:
 
     @classmethod
     def plot_invariants(cls, data: HemisphereData, ax: GeoAxes) -> None:
+        """
+        All plot operations that never change frame-to-frame.
+        """
         ax.set_title(f'{data.name} hemisphere')
         ax.stock_img()
         ax.gridlines()
 
     @classmethod
     def setup_common(
-        cls,
-        ax: GeoAxes,
-        data: HemisphereData,
-        initial_dusk: Nightshade,
-        initial_night: Nightshade,
+        cls, ax: GeoAxes, data: HemisphereData,
     ) -> tuple[
         FeatureArtist, FeatureArtist, plt.Line2D, PathCollection, plt.Text,
     ]:
         """
         Plot the common elements: the surface bitmap, night shading, the geodetic between the prayer
         location and the Kaaba, and the time at the centre.
-        :param dusk: to shade between sunset/sunrise and dawn/dusk; low refractive correction
-        :param night: to shade full darkness; high refractive correction
         """
-
-        dusk_art: FeatureArtist = ax.add_feature(initial_dusk, zorder=5)
-        night_art: FeatureArtist = ax.add_feature(initial_night, zorder=5)
+        null_feature = ShapelyFeature(geometries=[], crs=data.crs)
+        dusk_art: FeatureArtist = ax.add_feature(null_feature, zorder=5)
+        night_art: FeatureArtist = ax.add_feature(null_feature, zorder=5)
 
         geodesic_art: plt.Line2D
         geodesic_art, = ax.plot(
@@ -194,11 +198,7 @@ class HemispherePlots:
         return dusk_art, night_art, geodesic_art, origin_art, origin_time_art
 
     def update_common(
-        self,
-        dusk: Nightshade,
-        night: Nightshade,
-        local_now: datetime,
-        is_night: bool,
+        self, dusk: Nightshade, night: Nightshade, local_now: datetime, is_night: bool,
     ) -> tuple[plt.Artist, ...]:
         self.dusk_art._feature = dusk
         self.night_art._feature = night
@@ -217,10 +217,12 @@ class HemispherePlots:
 
     @classmethod
     def setup_ecliptic_parallel(
-        cls,
-        ax: GeoAxes,
-        data: HemisphereData,
+        cls, ax: GeoAxes, data: HemisphereData,
     ) -> plt.Line2D:
+        """
+        Plot a parallel in the ecliptic (not rotational) frame, through "home". Depicts the progress
+        of solar time across the globe for home's latitude.
+        """
         parallel_art: plt.Line2D
         parallel_art, = ax.plot(
             [], transform=data.geodetic, zorder=9,
@@ -242,8 +244,8 @@ class HemispherePlots:
     ) -> tuple[plt.Line2D, ...]:
         """
         Plot all of the prayer isochrone curves. Isochrones are not strictly meridians, don't always
-        intersect, and are always partially occluded by the globe. They don't vary in colour based
-        on time.
+        intersect, and are always partially occluded by the globe. They vary over time in position
+        but not colour.
         """
         artists = tuple(itertools.chain.from_iterable(
             ax.plot(
@@ -268,7 +270,7 @@ class HemispherePlots:
     ) -> plt.Text:
         """
         Plot a 'north' indicator, a heading arc from north to the geodesic, and the departing
-        heading in degrees
+        heading in degrees. Most of this is frame-invariant except the heading text colour.
         """
         distance, here_azimuth = inverse_geodesic(coord=data.coord, endpoint=data.endpoint)
 
@@ -305,16 +307,22 @@ class HemispherePlots:
         return self.heading_art,
 
     def plot_legend(self) -> None:
-        """Plot a legend of the geodesic and prayer names"""
+        """
+        Plot a legend of the geodesic and prayer names. Assume none of these change colour between
+        day and night.
+        """
         self.ax.legend(
             loc=(1, 0.1), bbox_transform=self.ax.transAxes,
         )
 
 
-def plot_spherical(
+def setup_spherical(
     home_coord: tuple[float, float],
-    utcnow: datetime,
-) -> plt.Figure:
+) -> tuple[
+    plt.Figure,
+    HemispherePlots,
+    HemispherePlots,
+]:
     """
     Plot two hemispheres in the spherical coordinate system, the left centred on 'home' (the prayer
     location) and the right centred on the Kaaba. These are expected to partially overlap.
@@ -334,21 +342,40 @@ def plot_spherical(
         geodetic=home_data.geodetic,
     )
 
+    home_plot = HemispherePlots.make(figure=fig, index=1, data=home_data)
+    kaaba_plot = HemispherePlots.make(figure=fig, index=2, data=kaaba_data)
+    home_plot.plot_legend()
+
+    return fig, home_plot, kaaba_plot
+
+
+def update_spherical(
+    home_plot: HemispherePlots,
+    kaaba_plot: HemispherePlots,
+    utcnow: datetime,
+) -> tuple[plt.Artist, ...]:
+    """
+    Update the figure for one frame
+    :param utcnow: Universal, tz-aware 'now' timestamp
+    """
     # this angle should be made to match the angles in the prayer database
     night = Nightshade(date=utcnow, delta=2, refraction=-15, alpha=0.33)
     dusk = Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33)
-
-    home_plot = HemispherePlots.make(
-        figure=fig, index=1, data=home_data,
-        initial_dusk=dusk, initial_night=night,
+    return (
+        home_plot.update(utcnow=utcnow, dusk=dusk, night=night) +
+        kaaba_plot.update(utcnow=utcnow, dusk=dusk, night=night)
     )
-    kaaba_plot = HemispherePlots.make(
-        figure=fig, index=2, data=kaaba_data,
-        initial_dusk=dusk, initial_night=night,
-    )
-    home_plot.plot_legend()
 
-    home_plot.update(utcnow=utcnow, dusk=dusk, night=night)
-    kaaba_plot.update(utcnow=utcnow, dusk=dusk, night=night)
 
+def plot_spherical(
+    home_coord: tuple[float, float],
+    utcnow: datetime,
+) -> plt.Figure:
+    """
+    Set up the figure and update it once, for a static plot
+    :param home_coord: Home lon, lat in degrees
+    :param utcnow: Universal, tz-aware 'now' timestamp
+    """
+    fig, home_plot, kaaba_plot = setup_spherical(home_coord)
+    update_spherical(home_plot=home_plot, kaaba_plot=kaaba_plot, utcnow=utcnow)
     return fig
