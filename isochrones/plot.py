@@ -1,3 +1,4 @@
+import itertools
 from dataclasses import dataclass
 from datetime import datetime, tzinfo
 from typing import NamedTuple
@@ -8,18 +9,19 @@ from cartopy.mpl.feature_artist import FeatureArtist
 from cartopy.mpl.geoaxes import GeoAxes
 from matplotlib import pyplot as plt
 from matplotlib.collections import PathCollection
-from matplotlib.lines import Line2D
 from matplotlib.patches import Arc
-from matplotlib.text import Text
 
-from .astro import KAABA_COORD, KAABA_TIMEZONE, check_contains_night, ecliptic_parallel, inverse_geodesic
+from .astro import (
+    KAABA_COORD, KAABA_TIMEZONE,
+    check_contains_night, ecliptic_parallel, inverse_geodesic,
+)
 from .prayers import PRAYERS
 
 # Day/night graph colours
-GEODETIC_COLOUR: tuple[str, str] = ('green', 'lightgreen')
+GEODESIC_COLOUR: tuple[str, str] = ('green', 'lightgreen')
 FEATURE_COLOUR: tuple[str, str] = ('black', 'white')
 ANNOTATE_COLOUR: tuple[str, str] = ('black', 'white')
-HEADING_COLOUR: tuple[str, str] = ('red', 'red')
+HEADING_COLOUR = 'red'
 
 
 def time_colour(is_night: bool, colours: tuple[str, str]) -> str:
@@ -73,15 +75,18 @@ class HemisphereData(NamedTuple):
 
 
 @dataclass(slots=True)
-class HemispherePlots(NamedTuple):
+class HemispherePlots:
     data: HemisphereData
     ax: GeoAxes                    # Plot on this
     dusk_art: FeatureArtist
     night_art: FeatureArtist
-    qibla_art: Line2D
+    geodesic_art: plt.Line2D
     origin_art: PathCollection
-    origin_time_art: Text
-    is_night: bool
+    origin_time_art: plt.Text
+    parallel_art: plt.Line2D
+    prayer_art: tuple[plt.Line2D, ...]
+    heading_art: plt.Text | None
+    is_night: bool | None = None
 
     @classmethod
     def make(
@@ -100,16 +105,47 @@ class HemispherePlots(NamedTuple):
         :param n_axes: in the figure. Typically two, for two hemispheres.
         :return:
         """
-        ax = figure.add_subplot(nrows=1, ncols=n_axes, index=index, projection=data.crs)
+        nrows = 1
+        ncols = n_axes
+        ax = figure.add_subplot(nrows, ncols, index, projection=data.crs)
 
         cls.plot_invariants(data, ax)
 
-        dusk_art, night_art, qibla_art, origin_art, origin_time_art = cls.setup_common(
-            initial_dusk=initial_dusk, initial_night=initial_night,
-            initial_is_night=,
+        dusk_art, night_art, geodesic_art, origin_art, origin_time_art = cls.setup_common(
+            ax=ax, data=data, initial_dusk=initial_dusk, initial_night=initial_night,
+        )
+        parallel_art = cls.setup_ecliptic_parallel(ax=ax, data=data)
+        prayer_art = cls.setup_prayer_isochrones(ax=ax, data=data)
+        heading_art = cls.setup_heading(ax=ax, data=data) if data.include_heading else None
+
+        return cls(
+            data=data, ax=ax,
+            dusk_art=dusk_art, night_art=night_art, geodesic_art=geodesic_art, origin_art=origin_art,
+            origin_time_art=origin_time_art, parallel_art=parallel_art, prayer_art=prayer_art,
+            heading_art=heading_art,
         )
 
-        return cls(data=data, ax=ax)
+    def update(
+        self,
+        dusk: Nightshade,
+        night: Nightshade,
+        utcnow: datetime,
+    ) -> tuple[plt.Artist, ...]:
+        local_now = utcnow.astimezone(self.data.timezone)
+        is_night = check_contains_night(night=dusk, local_now=local_now, coord=self.data.coord)
+
+        changed = (
+            self.update_common(
+                is_night=is_night, local_now=local_now, dusk=dusk, night=night,
+            )
+            + self.update_ecliptic_parallel(utcnow=utcnow)
+            + self.update_prayer_isochrones(utcnow=utcnow)
+        )
+        if self.data.include_heading:
+            changed += self.update_heading(is_night=is_night)
+
+        self.is_night = is_night
+        return changed
 
     @classmethod
     def plot_invariants(cls, data: HemisphereData, ax: GeoAxes) -> None:
@@ -124,36 +160,38 @@ class HemispherePlots(NamedTuple):
         data: HemisphereData,
         initial_dusk: Nightshade,
         initial_night: Nightshade,
-        initial_local: datetime,
-        initial_is_night: bool,
     ) -> tuple[
-        FeatureArtist, FeatureArtist, Line2D, PathCollection, Text,
+        FeatureArtist, FeatureArtist, plt.Line2D, PathCollection, plt.Text,
     ]:
+        """
+        Plot the common elements: the surface bitmap, night shading, the geodetic between the prayer
+        location and the Kaaba, and the time at the centre.
+        :param dusk: to shade between sunset/sunrise and dawn/dusk; low refractive correction
+        :param night: to shade full darkness; high refractive correction
+        """
+
         dusk_art: FeatureArtist = ax.add_feature(initial_dusk, zorder=5)
         night_art: FeatureArtist = ax.add_feature(initial_night, zorder=5)
 
-        qibla_art: Line2D
-        qibla_art, = ax.plot(
+        geodesic_art: plt.Line2D
+        geodesic_art, = ax.plot(
             [data.coord[0], data.endpoint[0]],
             [data.coord[1], data.endpoint[1]],
             transform=data.geodetic, zorder=10, label='Qibla',
-            c=time_colour(initial_is_night, GEODETIC_COLOUR),
+            c=GEODESIC_COLOUR[0],  # so that legend can be invariant
         )
 
-        origin_art: PathCollection = ax.scatter(
+        origin_art: plt.PathCollection = ax.scatter(
             [data.coord[0]], [data.coord[1]],
             transform=data.geodetic, zorder=11, marker='+',
-            c=time_colour(initial_is_night, FEATURE_COLOUR),
         )
 
-        origin_time_art: Text = ax.text(
-            x=data.coord[0], y=data.coord[1], rotation=270,
-            s=initial_local.strftime('%Y-%m-%d %H:%M:%S %z'),
+        origin_time_art: plt.Text = ax.text(
+            x=data.coord[0], y=data.coord[1], rotation=270, s='',
             transform=data.geodetic, zorder=12, ha='left', va='top',
-            color=time_colour(initial_is_night, ANNOTATE_COLOUR),
         )
 
-        return dusk_art, night_art, qibla_art, origin_art, origin_time_art
+        return dusk_art, night_art, geodesic_art, origin_art, origin_time_art
 
     def update_common(
         self,
@@ -164,79 +202,107 @@ class HemispherePlots(NamedTuple):
     ) -> tuple[plt.Artist, ...]:
         self.dusk_art._feature = dusk
         self.night_art._feature = night
+        self.origin_time_art.set_text(
+            local_now.strftime('%Y-%m-%d %H:%M:%S %z')
+        )
+        changed = [self.dusk_art, self.night_art, self.origin_time_art]
 
         if self.is_night != is_night:
-            self.qibla_art.set_color(time_colour(is_night, GEODETIC_COLOUR))
+            self.geodesic_art.set_color(time_colour(is_night, GEODESIC_COLOUR))
             self.origin_art.set_color(time_colour(is_night, FEATURE_COLOUR))
-            self.origin_time_art
+            self.origin_time_art.set_color(time_colour(is_night, ANNOTATE_COLOUR))
+            changed.extend((self.geodesic_art, self.origin_art))
 
+        return tuple(changed)
 
-
-        return (
-            dusk_art, night_art, qibla_art, origin_art, origin_time_art,
-        )
-
-    def update_ecliptic_parallel(self, utcnow: datetime) -> tuple[plt.Artist, ...]:
-        xy = ecliptic_parallel(globe_crs=self.data.geodetic, utcnow=utcnow, home=self.data.home)
-        parallel_art: Line2D
-        parallel_art, = self.ax.plot(
-            *xy, transform=self.data.geodetic, zorder=9,
+    @classmethod
+    def setup_ecliptic_parallel(
+        cls,
+        ax: GeoAxes,
+        data: HemisphereData,
+    ) -> plt.Line2D:
+        parallel_art: plt.Line2D
+        parallel_art, = ax.plot(
+            [], transform=data.geodetic, zorder=9,
             # label='ecliptic parallel',  # long and not particularly necessary
             c='grey',
         )
-        return parallel_art,
+        return parallel_art
 
-    def update_prayer_isochrones(self, utcnow: datetime) -> tuple[plt.Artist, ...]:
+    def update_ecliptic_parallel(self, utcnow: datetime) -> tuple[plt.Artist, ...]:
+        xy = ecliptic_parallel(globe_crs=self.data.geodetic, utcnow=utcnow, home=self.data.home)
+        self.parallel_art.set_data(*xy)
+        return self.parallel_art,
+
+    @classmethod
+    def setup_prayer_isochrones(
+        cls,
+        ax: GeoAxes,
+        data: HemisphereData,
+    ) -> tuple[plt.Line2D, ...]:
         """
         Plot all of the prayer isochrone curves. Isochrones are not strictly meridians, don't always
         intersect, and are always partially occluded by the globe. They don't vary in colour based
         on time.
         """
-        artists = []
-        for prayer in PRAYERS:
-            xy = prayer.isochrone(globe_crs=self.data.geodetic, utcnow=utcnow)
-            prayer_art, = self.ax.plot(
-                *xy, transform=self.data.geodetic, zorder=10,
+        artists = tuple(itertools.chain.from_iterable(
+            ax.plot(
+                [], transform=data.geodetic, zorder=10,
                 label=prayer.name, c=prayer.colour,
             )
-            artists.append(prayer_art)
-        return tuple(artists)
+            for prayer in PRAYERS
+        ))
+        return artists
 
-    def setup_heading(self) -> None:
+    def update_prayer_isochrones(self, utcnow: datetime) -> tuple[plt.Artist, ...]:
+        for prayer, artist in zip(PRAYERS, self.prayer_art):
+            xy = prayer.isochrone(globe_crs=self.data.geodetic, utcnow=utcnow)
+            artist.set_data(*xy)
+        return self.prayer_art
 
-
-    def update_heading(self, is_night: bool) -> tuple[plt.Artist, ...]:
+    @classmethod
+    def setup_heading(
+        cls,
+        ax: GeoAxes,
+        data: HemisphereData,
+    ) -> plt.Text:
         """
         Plot a 'north' indicator, a heading arc from north to the geodesic, and the departing
         heading in degrees
         """
-        distance, here_azimuth = inverse_geodesic(coord=self.coord, endpoint=self.endpoint)
+        distance, here_azimuth = inverse_geodesic(coord=data.coord, endpoint=data.endpoint)
 
         north = 0
-        self.ax.plot(
-            [self.coord[0], self.coord[0]],
-            [self.coord[1], self.coord[1] + 20],
-            transform=self.geodetic, zorder=10,
-            c=time_colour(is_night, HEADING_COLOUR),
+        ax.plot(
+            [data.coord[0], data.coord[0]],
+            [data.coord[1], data.coord[1] + 20],
+            transform=data.geodetic, zorder=10,
+            c=HEADING_COLOUR,
         )
-        self.ax.add_patch(Arc(
-            xy=self.coord, width=10, height=10,
-            transform=self.geodetic, zorder=10,
+        ax.add_patch(Arc(
+            xy=data.coord, width=10, height=10,
+            transform=data.geodetic, zorder=10,
             theta1=90 - here_azimuth, theta2=90 - north,
-            color=time_colour(is_night, HEADING_COLOUR),
+            color=HEADING_COLOUR,
         ))
 
-        self.ax.text(
-            x=self.coord[0], y=self.coord[1] + 6, s=f'{here_azimuth:.1f}°',
-            transform=self.geodetic, zorder=12,
-            color=time_colour(is_night, ANNOTATE_COLOUR),
+        heading_art: plt.Text = ax.text(
+            x=data.coord[0], y=data.coord[1] + 6, s=f'{here_azimuth:.1f}°',
+            transform=data.geodetic, zorder=12,
         )
-        self.ax.text(
+        ax.text(
             x=0.92, y=0.82,
             s=f'Geodesic: {distance*1e-3:,.0f} km',
-            transform=self.ax.transAxes, zorder=12,
+            transform=ax.transAxes, zorder=12,
             color=ANNOTATE_COLOUR[1],  # it's always "night" in space
         )
+        return heading_art
+
+    def update_heading(self, is_night: bool) -> tuple[plt.Artist, ...]:
+        if self.is_night == is_night:
+            return ()
+        self.heading_art.set_color(time_colour(is_night, ANNOTATE_COLOUR))
+        return self.heading_art,
 
     def plot_legend(self) -> None:
         """Plot a legend of the geodesic and prayer names"""
@@ -260,18 +326,29 @@ def plot_spherical(
     fig: plt.Figure = plt.figure()
 
     home_data = HemisphereData.make(
-        name='Home', index=1, coord=home_coord, endpoint=KAABA_COORD,
-        figure=fig, local_timezone=None)
+        name='Home', coord=home_coord, endpoint=KAABA_COORD, local_timezone=None,
+        include_heading=True, parallel_on_self=True,
+    )
     kaaba_data = HemisphereData.make(
-        name='Kaaba', index=2, coord=KAABA_COORD, endpoint=home_coord,
-        figure=fig, local_timezone=KAABA_TIMEZONE, geodetic=home_data.geodetic)
+        name='Kaaba', coord=KAABA_COORD, endpoint=home_coord, local_timezone=KAABA_TIMEZONE,
+        geodetic=home_data.geodetic,
+    )
 
     # this angle should be made to match the angles in the prayer database
     night = Nightshade(date=utcnow, delta=2, refraction=-15, alpha=0.33)
     dusk = Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33)
-    kaaba_hemi.plot(utcnow=utcnow, dusk=dusk, night=night)
-    home_hemi.plot(utcnow=utcnow, dusk=dusk, night=night,
-                   include_heading=True, parallel_on_self=True)
-    home_hemi.plot_legend()
+
+    home_plot = HemispherePlots.make(
+        figure=fig, index=1, data=home_data,
+        initial_dusk=dusk, initial_night=night,
+    )
+    kaaba_plot = HemispherePlots.make(
+        figure=fig, index=2, data=kaaba_data,
+        initial_dusk=dusk, initial_night=night,
+    )
+    home_plot.plot_legend()
+
+    home_plot.update(utcnow=utcnow, dusk=dusk, night=night)
+    kaaba_plot.update(utcnow=utcnow, dusk=dusk, night=night)
 
     return fig
