@@ -77,8 +77,7 @@ class HemisphereData(NamedTuple):
         )
 
 
-@dataclass(slots=True)
-class HemispherePlots:
+class HemispherePlots(NamedTuple):
     data: HemisphereData  # Hemisphere invariants
 
     # Axes and artists that never get reassigned between frames, only updated.
@@ -91,10 +90,6 @@ class HemispherePlots:
     parallel_art: plt.Line2D    # Ecliptic parallel through home
     prayer_art: tuple[plt.Line2D, ...]  # All prayer isochrones
     heading_art: plt.Text | None  # Heading text, if we have it
-
-    # This is the only state that changes referentially on this class. It's used to see whether
-    # night state has changed, in turn deciding whether to re-draw some day/night-coloured artists.
-    is_night: bool | None = None
 
     @classmethod
     def make(
@@ -153,7 +148,6 @@ class HemispherePlots:
         if self.data.include_heading:
             changed += self.update_heading(is_night=is_night)
 
-        self.is_night = is_night
         return changed
 
     @classmethod
@@ -207,15 +201,18 @@ class HemispherePlots:
         self.origin_time_art.set_text(
             local_now.strftime('%Y-%m-%d %H:%M:%S %z')
         )
-        changed = [self.dusk_art, self.night_art, self.origin_time_art]
 
-        if self.is_night != is_night:
-            self.geodesic_art.set_color(time_colour(is_night, GEODESIC_COLOUR))
-            self.origin_art.set_color(time_colour(is_night, FEATURE_COLOUR))
-            self.origin_time_art.set_color(time_colour(is_night, ANNOTATE_COLOUR))
-            changed.extend((self.geodesic_art, self.origin_art))
+        # We should be able to conditionally set these colours and conditionally pass them in the
+        # return tuple based on whether is_night has changed; but we can't - if we don't return them
+        # every time, they aren't drawn. Why?
+        self.geodesic_art.set_color(time_colour(is_night, GEODESIC_COLOUR))
+        self.origin_art.set_color(time_colour(is_night, FEATURE_COLOUR))
+        self.origin_time_art.set_color(time_colour(is_night, ANNOTATE_COLOUR))
 
-        return tuple(changed)
+        return (
+            self.dusk_art, self.night_art, self.origin_time_art,
+            self.geodesic_art, self.origin_art,
+        )
 
     @classmethod
     def setup_ecliptic_parallel(
@@ -303,8 +300,6 @@ class HemispherePlots:
         return heading_art
 
     def update_heading(self, is_night: bool) -> tuple[plt.Artist, ...]:
-        if self.is_night == is_night:
-            return ()
         self.heading_art.set_color(time_colour(is_night, ANNOTATE_COLOUR))
         return self.heading_art,
 
