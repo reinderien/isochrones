@@ -53,6 +53,8 @@ Interpretation
 
 This describes how to interpret the program UI.
 
+![screenshot](https://github.com/reinderien/isochrones/assets/1236420/43cde1cc-3036-4f8e-a3fe-2337dbb93588)
+
 The plot is divided into two hemispheres. These are probably not exactly
 opposite to each other and so some overlap will be apparent. The left
 hemisphere is centred on "home", and the right hemisphere is centred on the
