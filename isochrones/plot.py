@@ -1,4 +1,5 @@
 import itertools
+import logging
 import time
 import typing
 from datetime import datetime, timedelta, timezone, tzinfo
@@ -27,6 +28,8 @@ GEODESIC_COLOUR = 'green'
 FEATURE_COLOUR = 'white'
 ANNOTATE_COLOUR = 'white'
 HEADING_COLOUR = 'red'
+
+logger = logging.getLogger(__name__)
 
 
 class HemisphereData(NamedTuple):
@@ -103,10 +106,13 @@ class HemispherePlots(NamedTuple):
         :param n_axes: in the figure. Typically two, for two hemispheres.
         :return: A HemispherePlots ready for either plotting or animation.
         """
+        logger.info('Setting up artists (%s)...', data.name)
+
         nrows = 1
         ncols = n_axes
         ax = figure.add_subplot(nrows, ncols, index, projection=data.crs)
 
+        # This dominates the load time
         cls.plot_invariants(data, ax)
 
         (

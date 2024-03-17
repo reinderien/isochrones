@@ -9,7 +9,6 @@ from cartopy.feature.nightshade import _julian_day, _solar_position
 from cartopy.geodesic import Geodesic
 
 if typing.TYPE_CHECKING:
-    from typing import Any
     from cartopy.crs import CRS
     from .types import Coord, FloatArray
 

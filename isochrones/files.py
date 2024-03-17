@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import shutil
 import typing
@@ -9,6 +10,9 @@ from requests import Session
 
 if typing.TYPE_CHECKING:
     from .types import Coord
+
+
+logger = logging.getLogger(__name__)
 
 
 def load_home() -> 'Coord':
@@ -44,7 +48,7 @@ def load_blue_marble() -> None:
             file_path = resources / filename
             if not file_path.is_file():
                 url = urljoin(base, filename)
-                print(f'Downloading {url}...')
+                logger.info(f'Downloading %s...', url)
                 with session.get(
                     url=url, stream=True,
                     headers={'Accept': 'image/jpeg'},

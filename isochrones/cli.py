@@ -1,10 +1,22 @@
 import argparse
 import logging
+import sys
 from datetime import datetime, timezone
 
 
 def utc_parse(s: str) -> datetime:
     return datetime.fromisoformat(s).astimezone(timezone.utc)
+
+
+def setup_logging() -> None:
+    formatter = logging.Formatter('%(module)s: %(message)s')
+
+    handler = logging.StreamHandler(stream=sys.stdout)
+    handler.setFormatter(formatter)
+
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    root.addHandler(handler)
 
 
 def make_parser() -> argparse.ArgumentParser:
@@ -45,6 +57,7 @@ def make_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = make_parser().parse_args()
 
+    setup_logging()
     logger = logging.getLogger(__name__)
 
     # This can take a bit of time, so do it locally rather than at the top
@@ -53,14 +66,12 @@ def main() -> None:
     from .files import load_home, load_blue_marble
     from .plot import animate_spherical, plot_spherical
 
-    logger.info('Loading files...')
     load_blue_marble()
     if args.longitude is None:
         home_coord = load_home()
     else:
         home_coord = args.longitude, args.latitude
 
-    logger.info('Setting up artists...')
     if args.static:
         fig = plot_spherical(home_coord=home_coord, utcnow=args.time)
     else:
