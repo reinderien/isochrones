@@ -1,4 +1,4 @@
-from array import array
+import typing
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -8,6 +8,10 @@ from cartopy.feature.nightshade import Nightshade
 
 from .astro import SolarPosition
 
+if typing.TYPE_CHECKING:
+    from array import array
+    from .types import FloatArray
+
 
 @dataclass(frozen=True)
 class Prayer:
@@ -15,17 +19,17 @@ class Prayer:
     name: str     # prayer name in romanized Arabic
     colour: str   # time-invariant graphing colour
 
-    def isochrone(self, globe_crs: CRS, utcnow: datetime) -> np.ndarray:
+    def isochrone(self, globe_crs: CRS, utcnow: datetime) -> 'FloatArray':
         raise NotImplementedError()
 
 
 @dataclass(frozen=True, slots=True)
 class NoonPrayer(Prayer):
     @staticmethod
-    def make_lon(sun: SolarPosition, y: np.ndarray) -> np.ndarray:
+    def make_lon(sun: SolarPosition, y: 'FloatArray') -> 'FloatArray':
         return np.zeros_like(y)
 
-    def isochrone(self, globe_crs: CRS, utcnow: datetime) -> np.ndarray:
+    def isochrone(self, globe_crs: CRS, utcnow: datetime) -> 'FloatArray':
         sun = SolarPosition.from_time(utcnow=utcnow)
         sun.test()
         return sun.isochrone_from_noon_angle(
@@ -38,7 +42,7 @@ class RefractionPrayer(Prayer):
     angle: float  # degrees after sunrise or before sunset
     pm: bool      # true for any time after noon
 
-    def isochrone(self, globe_crs: CRS, utcnow: datetime) -> np.ndarray:
+    def isochrone(self, globe_crs: CRS, utcnow: datetime) -> 'FloatArray':
         """
         :param globe_crs: The coordinate reference system of the globe, used when translating to the
                           night-rotated coordinate system. Typically Geodetic.
@@ -48,10 +52,10 @@ class RefractionPrayer(Prayer):
         """
         night = Nightshade(date=utcnow, delta=2, refraction=self.angle)
         geom, = night.geometries()
-        xarray: array
-        yarray: array
+        xarray: array[float]
+        yarray: array[float]
         xarray, yarray = geom.boundary.coords.xy
-        xy = globe_crs.transform_points(
+        xy: FloatArray = globe_crs.transform_points(
             x=np.frombuffer(xarray),
             y=np.frombuffer(yarray), src_crs=night.crs,
         ).T[:-1]
@@ -70,10 +74,10 @@ class RefractionPrayer(Prayer):
 class ShadowPrayer(Prayer):
     shadow: float
 
-    def make_lon(self, sun: SolarPosition, y: np.ndarray) -> np.ndarray:
+    def make_lon(self, sun: SolarPosition, y: 'FloatArray') -> 'FloatArray':
         return sun.shadow_angle(shadow=self.shadow, y=y)
 
-    def isochrone(self, globe_crs: CRS, utcnow: datetime) -> np.ndarray:
+    def isochrone(self, globe_crs: CRS, utcnow: datetime) -> 'FloatArray':
         sun = SolarPosition.from_time(utcnow=utcnow)
         sun.test()
         return sun.isochrone_from_noon_angle(

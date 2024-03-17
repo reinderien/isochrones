@@ -1,4 +1,5 @@
 import itertools
+import typing
 from datetime import datetime, timedelta, timezone, tzinfo
 from typing import NamedTuple
 
@@ -6,16 +7,20 @@ from cartopy.crs import Geodetic, Orthographic
 from cartopy.feature import ShapelyFeature
 from cartopy.feature.nightshade import Nightshade
 from cartopy.mpl.feature_artist import FeatureArtist
-from cartopy.mpl.geoaxes import GeoAxes
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
-from matplotlib.collections import PathCollection
 from matplotlib.patches import Arc
 
 from .astro import (
     KAABA_COORD, KAABA_TIMEZONE, ecliptic_parallel, inverse_geodesic,
 )
 from .prayers import PRAYERS
+
+if typing.TYPE_CHECKING:
+    from cartopy.mpl.geoaxes import GeoAxes
+    from matplotlib.collections import PathCollection
+    from .types import Coord
+
 
 GEODESIC_COLOUR = 'green'
 FEATURE_COLOUR = 'white'
@@ -30,22 +35,22 @@ class HemisphereData(NamedTuple):
     still use the more accurate elliptical WGS-84.
     """
 
-    name: str                      # Hemisphere name, English or romanized Arabic
-    coord: tuple[float, float]     # "here" lon, lat in degrees; hemisphere centred on this
-    endpoint: tuple[float, float]  # "there" lon, lat in degrees; geodesic heads there
-    home: tuple[float, float]      # "home" lon, lat in degrees; ecliptic parallel here
-    crs: Orthographic              # Projective coordinate system for graphing
-    geodetic: Geodetic             # Globe coordinate system; this one is spherical
-    timezone: tzinfo | None        # None means local timezone. Used for date display.
-    parallel_on_self: bool         # Is the ecliptic parallel on 'coord'?
-    include_heading: bool          # Do we include the geodesic heading on this plot?
+    name: str                # Hemisphere name, English or romanized Arabic
+    coord: 'Coord'           # "here" lon, lat in degrees; hemisphere centred on this
+    endpoint: 'Coord'        # "there" lon, lat in degrees; geodesic heads there
+    home: 'Coord'            # "home" lon, lat in degrees; ecliptic parallel here
+    crs: Orthographic        # Projective coordinate system for graphing
+    geodetic: Geodetic       # Globe coordinate system; this one is spherical
+    timezone: tzinfo | None  # None means local timezone. Used for date display.
+    parallel_on_self: bool   # Is the ecliptic parallel on 'coord'?
+    include_heading: bool    # Do we include the geodesic heading on this plot?
 
     @classmethod
     def make(
         cls,
         name: str,
-        coord: tuple[float, float],
-        endpoint: tuple[float, float],
+        coord: 'Coord',
+        endpoint: 'Coord',
         local_timezone: tzinfo | None,
         geodetic: Geodetic | None = None,
         parallel_on_self: bool = False,
@@ -71,16 +76,16 @@ class HemispherePlots(NamedTuple):
     data: HemisphereData  # Hemisphere invariants
 
     # Axes and artists that never get reassigned between frames, only updated.
-    ax: GeoAxes                 # Plot on this
-    dusk_art: FeatureArtist     # Dusk (outer, lighter) shading
-    night_art: FeatureArtist    # Night (inner, darker) shading
-    geodesic_art: plt.Line2D    # Geodesic "qibla" line, straight due to orthographic projn
-    origin_art: PathCollection  # Cross at "here"
-    origin_time_art: plt.Text   # Time text at "here"
-    parallel_art: plt.Line2D    # Ecliptic parallel through home
+    ax: 'GeoAxes'                 # Plot on this
+    dusk_art: FeatureArtist       # Dusk (outer, lighter) shading
+    night_art: FeatureArtist      # Night (inner, darker) shading
+    geodesic_art: plt.Line2D      # Geodesic "qibla" line, straight due to orthographic projn
+    origin_art: 'PathCollection'  # Cross at "here"
+    origin_time_art: plt.Text     # Time text at "here"
+    parallel_art: plt.Line2D      # Ecliptic parallel through home
     prayer_art: tuple[plt.Line2D, ...]  # All prayer isochrones
     north_line_art: plt.Line2D | None
-    north_arc_art: Arc | None
+    north_arc_art: Arc | None     # Arc from north to geodesic
     heading_art: plt.Text | None  # Heading text, if we have it
 
     @classmethod
@@ -144,7 +149,7 @@ class HemispherePlots(NamedTuple):
         return changed
 
     @classmethod
-    def plot_invariants(cls, data: HemisphereData, ax: GeoAxes) -> None:
+    def plot_invariants(cls, data: HemisphereData, ax: 'GeoAxes') -> None:
         """
         All plot operations that never change frame-to-frame.
         """
@@ -154,9 +159,9 @@ class HemispherePlots(NamedTuple):
 
     @classmethod
     def setup_common(
-        cls, ax: GeoAxes, data: HemisphereData,
+        cls, ax: 'GeoAxes', data: HemisphereData,
     ) -> tuple[
-        FeatureArtist, FeatureArtist, plt.Line2D, PathCollection, plt.Text,
+        FeatureArtist, FeatureArtist, plt.Line2D, 'PathCollection', plt.Text,
     ]:
         """
         Plot the common elements: the surface bitmap, night shading, the geodetic between the prayer
@@ -205,7 +210,7 @@ class HemispherePlots(NamedTuple):
 
     @classmethod
     def setup_ecliptic_parallel(
-        cls, ax: GeoAxes, data: HemisphereData,
+        cls, ax: 'GeoAxes', data: HemisphereData,
     ) -> plt.Line2D:
         """
         Plot a parallel in the ecliptic (not rotational) frame, through "home". Depicts the progress
@@ -226,7 +231,7 @@ class HemispherePlots(NamedTuple):
 
     @classmethod
     def setup_prayer_isochrones(
-        cls, ax: GeoAxes, data: HemisphereData,
+        cls, ax: 'GeoAxes', data: HemisphereData,
     ) -> tuple[plt.Line2D, ...]:
         """
         Plot all of the prayer isochrone curves. Isochrones are not strictly meridians, don't always
@@ -250,7 +255,7 @@ class HemispherePlots(NamedTuple):
 
     @classmethod
     def setup_heading(
-        cls, ax: GeoAxes, data: HemisphereData,
+        cls, ax: 'GeoAxes', data: HemisphereData,
     ) -> tuple[
         plt.Line2D, Arc, plt.Text,
     ]:
@@ -306,9 +311,7 @@ class HemispherePlots(NamedTuple):
         )
 
 
-def setup_spherical(
-    home_coord: tuple[float, float],
-) -> tuple[
+def setup_spherical(home_coord: 'Coord') -> tuple[
     plt.Figure,
     HemispherePlots,
     HemispherePlots,
@@ -358,7 +361,7 @@ def update_spherical(
 
 
 def plot_spherical(
-    home_coord: tuple[float, float],
+    home_coord: 'Coord',
     utcnow: datetime | None = None,
 ) -> plt.Figure:
     """
@@ -374,7 +377,7 @@ def plot_spherical(
 
 
 def animate_spherical_realtime(
-    home_coord: tuple[float, float],
+    home_coord: 'Coord',
 ) -> tuple[plt.Figure, FuncAnimation]:
     fig, home_plot, kaaba_plot = setup_spherical(home_coord)
 
@@ -392,7 +395,7 @@ def animate_spherical_realtime(
 
 
 def animate_spherical_fast(
-    home_coord: tuple[float, float],
+    home_coord: 'Coord',
     start_utc: datetime | None = None,
     time_factor: float = 60*60,  # one hour per second
 ) -> tuple[plt.Figure, FuncAnimation]:

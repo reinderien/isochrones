@@ -1,13 +1,17 @@
 import json
 import os
 import shutil
+import typing
 from pathlib import Path
 from urllib.parse import urljoin
 
 from requests import Session
 
+if typing.TYPE_CHECKING:
+    from .types import Coord
 
-def load_home() -> tuple[float, float]:
+
+def load_home() -> 'Coord':
     """
     Load the prayer coordinate
     """

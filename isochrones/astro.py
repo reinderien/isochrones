@@ -1,11 +1,23 @@
+import typing
 from datetime import datetime
-from typing import NamedTuple, Protocol
+from typing import NamedTuple
 from zoneinfo import ZoneInfo
 
 import numpy as np
-from cartopy.crs import RotatedPole, CRS
+from cartopy.crs import RotatedPole
 from cartopy.feature.nightshade import _julian_day, _solar_position
 from cartopy.geodesic import Geodesic
+
+if typing.TYPE_CHECKING:
+    from typing import Any
+    from cartopy.crs import CRS
+    from .types import Coord, FloatArray
+
+    class LonFromLat(typing.Protocol):
+        def __call__(
+            self, sun: 'SolarPosition', y: 'FloatArray',
+        ) -> 'FloatArray':
+            ...
 
 
 # Location and time zone of the Kaaba in Mecca
@@ -14,9 +26,8 @@ KAABA_TIMEZONE = ZoneInfo('Asia/Riyadh')
 
 
 def inverse_geodesic(
-    coord: tuple[float, float],
-    endpoint: tuple[float, float],
-) -> tuple[float, float]:
+    coord: 'Coord', endpoint: 'Coord',
+) -> 'Coord':
     """
     Calculate the inverse geodesic parameters between the prayer location and the Kaaba. This
     uses WGS-84 and not the spherical CRS - so we use our own Geodesic instead of the spherical
@@ -31,10 +42,8 @@ def inverse_geodesic(
 
 
 def ecliptic_parallel(
-    utcnow: datetime,
-    home: tuple[float, float],
-    globe_crs: CRS,
-) -> np.ndarray:
+    utcnow: datetime, home: 'Coord', globe_crs: 'CRS',
+) -> 'FloatArray':
     # 'home' is in the rotational frame already. We need to convert it to the
     # ecliptic ("rotated pole") frame.
     sun = SolarPosition.from_time(utcnow=utcnow)
@@ -44,16 +53,11 @@ def ecliptic_parallel(
     )
 
     x = np.linspace(-180, 180, 181)
-    xyz: np.ndarray = globe_crs.transform_points(
+    xyz: FloatArray = globe_crs.transform_points(
         x=x, y=np.full_like(a=x, fill_value=ey),
         src_crs=sun.rotated_pole,
     ).T
     return xyz[:-1]
-
-
-class LonFromLat(Protocol):
-    def __call__(self, sun: 'SolarPosition', y: np.ndarray) -> np.ndarray:
-        ...
 
 
 class SolarPosition(NamedTuple):
@@ -172,7 +176,7 @@ class SolarPosition(NamedTuple):
             rtol=0, atol=1e-12,
         )
 
-    def shadow_angle(self, y: np.ndarray, shadow: float) -> np.ndarray:
+    def shadow_angle(self, y: 'FloatArray', shadow: float) -> 'FloatArray':
         """
         Based on https://radhifadlillah.com/blog/2020-09-06-calculating-prayer-times/
         Return the angular difference in rad between solar noon and the 'asr'
@@ -194,14 +198,14 @@ class SolarPosition(NamedTuple):
         # Let the NaNs through, but don't complain about them.
         # arg = np.clip(arg, a_min=-1, a_max=1)
         is_valid = (arg >= -1) & (arg <= +1)
-        A = np.full_like(a=arg, fill_value=np.nan)
+        A: FloatArray = np.full_like(a=arg, fill_value=np.nan)
         A[is_valid] = np.arccos(arg[is_valid])
 
         return A
 
     def isochrone_from_noon_angle(
-        self, globe_crs: CRS, make_lon: LonFromLat,
-    ) -> np.ndarray:
+        self, globe_crs: 'CRS', make_lon: 'LonFromLat',
+    ) -> 'FloatArray':
         """
         :param globe_crs: The coordinate reference system of the globe, used when translating to the
                           night-rotated coordinate system. Typically Geodetic.
@@ -210,7 +214,7 @@ class SolarPosition(NamedTuple):
         """
         y = np.linspace(start=-np.pi/2, stop=+np.pi/2, num=91)
         x = make_lon(sun=self, y=y)
-        xyz = globe_crs.transform_points(
+        xyz: FloatArray = globe_crs.transform_points(
             x=np.rad2deg(x) + 180,
             y=np.rad2deg(y),
             src_crs=self.rotated_pole,
