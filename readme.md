@@ -247,6 +247,10 @@ for the sun position vector. Vallado warns that these are not as precise as
 the JPL's Sun-Earth ephemerides, but are still accurate to 0.01 degrees through
 the year 2050.
 
+The program uses a mid-resolution (5400x2700) Blue Marble image. This has about
+0.2 degrees of resolution on the equator, chosen due to a modest download size
+of 2.3 MB. You won't be able to resolve your swimming pool.
+
 The program is somewhat slow, so there will be lag typically up to one second
 between the depicted time and the true time. The true time depends on an
 accurate operating system clock. The program does not look up the correct time
