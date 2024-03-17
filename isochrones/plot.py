@@ -393,7 +393,7 @@ def animate_spherical_realtime(
 
     anim = FuncAnimation(
         fig=fig, func=update, repeat=False, blit=True, cache_frame_data=False,
-        interval=500,
+        interval=750,
     )
     return fig, anim
 
@@ -407,7 +407,7 @@ def animate_spherical_fast(
         start_utc = datetime.now().astimezone(timezone.utc)
 
     fig, home_plot, kaaba_plot = setup_spherical(home_coord)
-    frame_interval = timedelta(milliseconds=100)
+    frame_interval = timedelta(milliseconds=750)
 
     def update(frame: int) -> tuple[plt.Artist, ...]:
         virtual_time = start_utc + frame_interval*(time_factor*frame)
