@@ -1,4 +1,5 @@
 import itertools
+import time
 import typing
 from datetime import datetime, timedelta, timezone, tzinfo
 from typing import NamedTuple
@@ -376,37 +377,26 @@ def plot_spherical(
     return fig
 
 
-def animate_spherical_realtime(
-    home_coord: 'Coord',
-) -> tuple[plt.Figure, FuncAnimation]:
-    fig, home_plot, kaaba_plot = setup_spherical(home_coord)
-
-    def update(frame: int) -> tuple[plt.Artist, ...]:
-        return update_spherical(
-            home_plot=home_plot, kaaba_plot=kaaba_plot,
-            utcnow=datetime.now().astimezone(timezone.utc),
-        )
-
-    anim = FuncAnimation(
-        fig=fig, func=update, repeat=False, blit=True, cache_frame_data=False,
-        interval=750,
-    )
-    return fig, anim
-
-
-def animate_spherical_fast(
+def animate_spherical(
     home_coord: 'Coord',
     start_utc: datetime | None = None,
-    time_factor: float = 60*60,  # one hour per second
+    time_factor: float = 1,
 ) -> tuple[plt.Figure, FuncAnimation]:
+    fig, home_plot, kaaba_plot = setup_spherical(home_coord)
+
     if start_utc is None:
         start_utc = datetime.now().astimezone(timezone.utc)
-
-    fig, home_plot, kaaba_plot = setup_spherical(home_coord)
-    frame_interval = timedelta(milliseconds=750)
+    start = time.monotonic()
 
     def update(frame: int) -> tuple[plt.Artist, ...]:
-        virtual_time = start_utc + frame_interval*(time_factor*frame)
+        # Don't trust that frame * interval == elapsed... because it isn't
+
+        if time_factor == 1:
+            virtual_time = datetime.now().astimezone(timezone.utc)
+        else:
+            virtual_time = start_utc + timedelta(
+                seconds=time_factor*(time.monotonic() - start),
+            )
         return update_spherical(
             home_plot=home_plot, kaaba_plot=kaaba_plot,
             utcnow=virtual_time,
@@ -414,6 +404,7 @@ def animate_spherical_fast(
 
     anim = FuncAnimation(
         fig=fig, func=update, repeat=False, blit=True, cache_frame_data=False,
-        interval=frame_interval/timedelta(milliseconds=1),
+        interval=750,
     )
+
     return fig, anim
