@@ -39,10 +39,11 @@ def load_blue_marble() -> None:
         ):
             file_path = resources / filename
             if not file_path.is_file():
+                url = urljoin(base, filename)
+                print(f'Downloading {url}...')
                 with session.get(
-                    url=urljoin(base, filename),
+                    url=url, stream=True,
                     headers={'Accept': 'image/jpeg'},
-                    stream=True,
                 ) as resp:
                     resp.raise_for_status()
                     with file_path.open(mode='wb') as f:
