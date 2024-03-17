@@ -44,7 +44,7 @@ def ecliptic_parallel(
     )
 
     x = np.linspace(-180, 180, 181)
-    xyz = globe_crs.transform_points(
+    xyz: np.ndarray = globe_crs.transform_points(
         x=x, y=np.full_like(a=x, fill_value=ey),
         src_crs=sun.rotated_pole,
     ).T

@@ -290,7 +290,11 @@ class HemispherePlots(NamedTuple):
 
     def update_heading(self) -> tuple[plt.Artist, ...]:
         # None of these have updated, but they need to be redrawn on top of the nightshades
-        return self.north_line_art, self.north_arc_art, self.heading_art
+        return tuple(
+            artist
+            for artist in (self.north_line_art, self.north_arc_art, self.heading_art)
+            if artist is not None
+        )
 
     def plot_legend(self) -> None:
         """
