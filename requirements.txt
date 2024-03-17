@@ -1,6 +1,7 @@
 cartopy
 matplotlib
 numpy
+requests
 scipy
 shapely
 tzdata

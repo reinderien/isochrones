@@ -156,7 +156,7 @@ class HemispherePlots(NamedTuple):
         All plot operations that never change frame-to-frame.
         """
         ax.set_title(f'{data.name} hemisphere')
-        ax.stock_img()
+        ax.background_img(name='blue-marble-next-generation', resolution='high')
         ax.gridlines()
 
     @classmethod

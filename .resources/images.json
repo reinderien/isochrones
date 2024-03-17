@@ -1,0 +1,10 @@
+{
+  "__comment__": "Used by cartopy.mpl.geoaxes.read_user_background_images. Based on https://github.com/SciTools/cartopy/blob/main/lib/cartopy/data/raster/natural_earth/images.json",
+  "blue-marble-next-generation": {
+    "__comment__": "July, Blue Marble Next Generation w/ Topography and Bathymetry",
+    "__source__": "https://visibleearth.nasa.gov/images/73751/july-blue-marble-next-generation-w-topography-and-bathymetry/73753l",
+    "__projection__": "PlateCarree",
+    "low": "world.topo.bathy.200407x294x196.jpg",
+    "high": "world.topo.bathy.200407.3x5400x2700.jpg"
+  }
+}
