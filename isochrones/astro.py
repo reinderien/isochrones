@@ -4,26 +4,13 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 from cartopy.crs import RotatedPole, CRS
-from cartopy.feature.nightshade import Nightshade, _julian_day, _solar_position
+from cartopy.feature.nightshade import _julian_day, _solar_position
 from cartopy.geodesic import Geodesic
-from shapely import Point, Polygon
 
 
 # Location and time zone of the Kaaba in Mecca
 KAABA_COORD = (39.826167, 21.4225)
 KAABA_TIMEZONE = ZoneInfo('Asia/Riyadh')
-
-
-def check_contains_night(
-    local_now: datetime,
-    coord: tuple[float, float],
-    night: Nightshade,
-) -> bool:
-    geom: Polygon
-    geom, = night.geometries()
-    point = Point(coord)
-    # This doesn't work well at all. Maybe it doesn't account for occlusion?
-    return geom.contains(point) and not (6 <= local_now.hour <= 18)
 
 
 def inverse_geodesic(

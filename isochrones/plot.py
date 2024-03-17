@@ -13,22 +13,14 @@ from matplotlib.collections import PathCollection
 from matplotlib.patches import Arc
 
 from .astro import (
-    KAABA_COORD, KAABA_TIMEZONE,
-    check_contains_night, ecliptic_parallel, inverse_geodesic,
+    KAABA_COORD, KAABA_TIMEZONE, ecliptic_parallel, inverse_geodesic,
 )
 from .prayers import PRAYERS
 
-# Day/night graph colours
-GEODESIC_COLOUR: tuple[str, str] = ('green', 'lightgreen')
-FEATURE_COLOUR: tuple[str, str] = ('black', 'white')
-ANNOTATE_COLOUR: tuple[str, str] = ('black', 'white')
+GEODESIC_COLOUR = 'green'
+FEATURE_COLOUR = 'white'
+ANNOTATE_COLOUR = 'white'
 HEADING_COLOUR = 'red'
-
-
-def time_colour(is_night: bool, colours: tuple[str, str]) -> str:
-    """Based on the time, choose light or dark colours for contrast."""
-    day, night = colours
-    return night if is_night else day
 
 
 class HemisphereData(NamedTuple):
@@ -87,6 +79,8 @@ class HemispherePlots(NamedTuple):
     origin_time_art: plt.Text   # Time text at "here"
     parallel_art: plt.Line2D    # Ecliptic parallel through home
     prayer_art: tuple[plt.Line2D, ...]  # All prayer isochrones
+    north_line_art: plt.Line2D | None
+    north_arc_art: Arc | None
     heading_art: plt.Text | None  # Heading text, if we have it
 
     @classmethod
@@ -114,13 +108,17 @@ class HemispherePlots(NamedTuple):
         ) = cls.setup_common(ax=ax, data=data)
         parallel_art = cls.setup_ecliptic_parallel(ax=ax, data=data)
         prayer_art = cls.setup_prayer_isochrones(ax=ax, data=data)
-        heading_art = cls.setup_heading(ax=ax, data=data) if data.include_heading else None
+        north_line_art, north_arc_art, heading_art = (
+            cls.setup_heading(ax=ax, data=data)
+            if data.include_heading else (None, None, None)
+        )
 
         return cls(
             data=data, ax=ax,
             dusk_art=dusk_art, night_art=night_art, geodesic_art=geodesic_art,
             origin_art=origin_art, origin_time_art=origin_time_art, parallel_art=parallel_art,
-            prayer_art=prayer_art, heading_art=heading_art,
+            prayer_art=prayer_art, north_line_art=north_line_art, north_arc_art=north_arc_art,
+            heading_art=heading_art,
         )
 
     def update(
@@ -134,17 +132,14 @@ class HemispherePlots(NamedTuple):
         :return: All changed artists.
         """
         local_now = utcnow.astimezone(self.data.timezone)
-        is_night = check_contains_night(night=dusk, local_now=local_now, coord=self.data.coord)
 
         changed = (
-            self.update_common(
-                is_night=is_night, local_now=local_now, dusk=dusk, night=night,
-            )
+            self.update_common(local_now=local_now, dusk=dusk, night=night)
             + self.update_ecliptic_parallel(utcnow=utcnow)
             + self.update_prayer_isochrones(utcnow=utcnow)
         )
         if self.data.include_heading:
-            changed += self.update_heading(is_night=is_night)
+            changed += self.update_heading()
 
         return changed
 
@@ -176,23 +171,25 @@ class HemispherePlots(NamedTuple):
             [data.coord[0], data.endpoint[0]],
             [data.coord[1], data.endpoint[1]],
             transform=data.geodetic, zorder=10, label='Qibla',
-            c=GEODESIC_COLOUR[0],  # so that legend can be invariant
+            c=GEODESIC_COLOUR,
         )
 
         origin_art: plt.PathCollection = ax.scatter(
             [data.coord[0]], [data.coord[1]],
             transform=data.geodetic, zorder=11, marker='+',
+            c=FEATURE_COLOUR,
         )
 
         origin_time_art: plt.Text = ax.text(
             x=data.coord[0], y=data.coord[1], rotation=270, s='',
             transform=data.geodetic, zorder=12, ha='left', va='top',
+            c=ANNOTATE_COLOUR,
         )
 
         return dusk_art, night_art, geodesic_art, origin_art, origin_time_art
 
     def update_common(
-        self, dusk: Nightshade, night: Nightshade, local_now: datetime, is_night: bool,
+        self, dusk: Nightshade, night: Nightshade, local_now: datetime,
     ) -> tuple[plt.Artist, ...]:
         self.dusk_art._feature = dusk
         self.night_art._feature = night
@@ -200,16 +197,10 @@ class HemispherePlots(NamedTuple):
             local_now.strftime('%Y-%m-%d %H:%M:%S %z')
         )
 
-        # We should be able to conditionally set these colours and conditionally pass them in the
-        # return tuple based on whether is_night has changed; but we can't - if we don't return them
-        # every time, they aren't drawn. Why?
-        self.geodesic_art.set_color(time_colour(is_night, GEODESIC_COLOUR))
-        self.origin_art.set_color(time_colour(is_night, FEATURE_COLOUR))
-        self.origin_time_art.set_color(time_colour(is_night, ANNOTATE_COLOUR))
-
+        # This includes artists that haven't actually updated, but should be redrawn on top of the
+        # nightshades
         return (
-            self.dusk_art, self.night_art, self.origin_time_art,
-            self.geodesic_art, self.origin_art,
+            self.dusk_art, self.night_art, self.geodesic_art, self.origin_art, self.origin_time_art,
         )
 
     @classmethod
@@ -235,9 +226,7 @@ class HemispherePlots(NamedTuple):
 
     @classmethod
     def setup_prayer_isochrones(
-        cls,
-        ax: GeoAxes,
-        data: HemisphereData,
+        cls, ax: GeoAxes, data: HemisphereData,
     ) -> tuple[plt.Line2D, ...]:
         """
         Plot all of the prayer isochrone curves. Isochrones are not strictly meridians, don't always
@@ -261,10 +250,10 @@ class HemispherePlots(NamedTuple):
 
     @classmethod
     def setup_heading(
-        cls,
-        ax: GeoAxes,
-        data: HemisphereData,
-    ) -> plt.Text:
+        cls, ax: GeoAxes, data: HemisphereData,
+    ) -> tuple[
+        plt.Line2D, Arc, plt.Text,
+    ]:
         """
         Plot a 'north' indicator, a heading arc from north to the geodesic, and the departing
         heading in degrees. Most of this is frame-invariant except the heading text colour.
@@ -272,34 +261,36 @@ class HemispherePlots(NamedTuple):
         distance, here_azimuth = inverse_geodesic(coord=data.coord, endpoint=data.endpoint)
 
         north = 0
-        ax.plot(
+        north_line_art, = ax.plot(
             [data.coord[0], data.coord[0]],
             [data.coord[1], data.coord[1] + 20],
             transform=data.geodetic, zorder=10,
             c=HEADING_COLOUR,
         )
-        ax.add_patch(Arc(
+        north_arc_art = Arc(
             xy=data.coord, width=10, height=10,
             transform=data.geodetic, zorder=10,
             theta1=90 - here_azimuth, theta2=90 - north,
             color=HEADING_COLOUR,
-        ))
+        )
+        ax.add_patch(north_arc_art)
 
         heading_art: plt.Text = ax.text(
             x=data.coord[0], y=data.coord[1] + 6, s=f'{here_azimuth:.1f}°',
             transform=data.geodetic, zorder=12,
+            color=ANNOTATE_COLOUR,
         )
         ax.text(
             x=0.92, y=0.82,
             s=f'Geodesic: {distance*1e-3:,.0f} km',
             transform=ax.transAxes, zorder=12,
-            color=ANNOTATE_COLOUR[1],  # it's always "night" in space
+            color=ANNOTATE_COLOUR,  # it's always "night" in space
         )
-        return heading_art
+        return north_line_art, north_arc_art, heading_art
 
-    def update_heading(self, is_night: bool) -> tuple[plt.Artist, ...]:
-        self.heading_art.set_color(time_colour(is_night, ANNOTATE_COLOUR))
-        return self.heading_art,
+    def update_heading(self) -> tuple[plt.Artist, ...]:
+        # None of these have updated, but they need to be redrawn on top of the nightshades
+        return self.north_line_art, self.north_arc_art, self.heading_art
 
     def plot_legend(self) -> None:
         """
