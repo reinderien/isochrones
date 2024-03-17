@@ -65,8 +65,8 @@ least four different kinds of pole:
   [precess](https://en.wikipedia.org/wiki/Axial_precession) over tens of
   thousands of years.
 - The [magnetic poles](https://en.wikipedia.org/wiki/Poles_of_astronomical_bodies#Magnetic_poles)
-  orient a compass. When Muslims determine the qibla for a given location, they
-  need to account for
+  orient a compass. When Muslims determine the _qibla_ for a given location,
+  they need to account for
   [magnetic declination](https://en.wikipedia.org/wiki/Magnetic_declination) to
   translate from the magnetic frame to the terrestrial frame, in turn
   determining a heading from true north. These magnetic poles
@@ -88,35 +88,44 @@ Isochrones
 
 At any given time, for a specific prayer, there is one curve across the Earth
 where all points on that curve satisfy the solar conditions for that prayer.
-This curve is an [isochrone](https://en.wiktionary.org/wiki/isochrone). If the
-celestial and ecliptic poles were aligned, then prayer isochrones would be
-[meridians](https://en.wikipedia.org/wiki/Meridian_(geography)) in the
+This curve is an [isochrone](https://en.wiktionary.org/wiki/isochrone). We can
+understand these isochrones using a series of simplifications that we
+progressively have to give up.
+
+If the celestial and ecliptic poles were aligned, then most prayer isochrones
+would be [meridians](https://en.wikipedia.org/wiki/Meridian_(geography)) in the
 rotational frame. However, since the Earth's rotation has an
 [axial tilt](https://en.wikipedia.org/wiki/Axial_tilt) or _ecliptic obliquity_,
 the poles are offset by about 23° and the isochrones are actually _ecliptic_
 meridians extending to the ecliptic poles, not the terrestrial poles. This has
 the effect of changing prayer times through the year.
 
-Further, since all of the prayer definitions need various amounts of angular
+Only the noon _zuhr_ is actually an ecliptic meridian. Since the _fajh_,
+_maghrib_ and _isha_ prayer definitions need various amounts of angular
 correction to account for refraction, they are not really meridians. They're
-paths offset (sometimes significantly, up to 20-some degrees) from the ecliptic
-poles.
+ellipsoidal sections offset (sometimes significantly, up to 20-some degrees)
+from the ecliptic poles.
+
+The afternoon _asr_ is much more complicated, and not an ellipsoidal section at
+all. Since it uses the absolute value of the ecliptic latitude, it's not even
+[differentiable](https://en.wikipedia.org/wiki/Differentiable_function).
 
 Degenerate locations
 --------------------
 
 The ecliptic poles for the current day of year are
 [gimbal-locked](https://en.wikipedia.org/wiki/Gimbal_lock), which implies an
-undefined prayer schedule at that location: it is both always time for zuhr and
-never time for zuhr. At this location, the sun circles the horizon but never
-rises or sets.
+undefined prayer schedule at that location: it is both always time for _zuhr_
+and never time for _zuhr_. At this location, the sun circles the horizon but
+never rises or sets.
 
 There are two degenerate polar regions; whether they appear in the north or
 south depends on the time of year. In one region spanning from an ecliptic pole
-to the terminus of the fajr/isha isochrones, it is always dark but never
-dark enough to meet the refraction threshold for fajr and isha, so fajr and
-isha cannot happen. In the other region bounded by the other ecliptic pole, it
-is always bright, the sun never sets, and fajr and isha still cannot happen.
+to the terminus of the _fajr_/_isha_ isochrones, it is always dark but never
+dark enough to meet the refraction threshold for _fajr_ and _isha_, so _fajr_
+and _isha_ cannot happen. In the other region bounded by the other ecliptic
+pole, it is always bright, the sun never sets, and _fajr_ and _isha_ still
+cannot happen.
 
 [Fatwa 2769](https://islamqa.info/en/answers/5842/how-to-pray-and-fast-in-countries-where-the-day-or-night-is-continuous)
 attempted to clear these ambiguities.
@@ -126,8 +135,14 @@ Implementation
 ==============
 
 This code follows (some of the) schedule definitions from
-[Hamid's prayer time guide](http://www.praytimes.org/calculation/).
+[Hamid's prayer time guide](http://www.praytimes.org/calculation/). However,
+its definition for _asr_ is incorrect, so the astronomy code also follows
+[Radhi Fadlillah's guide](https://radhifadlillah.com/blog/2020-09-06-calculating-prayer-times/).
 
+It relies heavily on [Cartopy](https://scitools.org.uk/cartopy/docs/latest) for
+geographic visualisation, in turn relying heavily on
+[Pyproj](https://pyproj4.github.io/pyproj/stable/) for coordinate system
+transformations.
 
 Setup
 =====
@@ -149,4 +164,32 @@ Populate `.home.json` with the location of prayer, to look like
 }
 ```
 
-then run `demo.py`.
+then run `python -m isochrones`. On first run it will download Earth surface
+images.
+
+Interpretation
+==============
+
+The plot is divided into two hemispheres. These are probably not exactly
+opposite to each other and so some overlap will be apparent. The left
+hemisphere is centred on "home", and the right hemisphere is centred on the
+Kaaba. These points are both shown with small crosses.
+
+From the home point, a heading from north is drawn in red to indicate the
+departing angle of the _qibla_ geodesic. The geodesic is drawn in both
+hemispheres, and the distance of this geodesic to the Kaaba is shown at the
+edge of the home hemisphere.
+
+A timestamp is shown at both hemisphere centres. At the home centre the
+timezone is assumed to be the local timezone of the user's computer, and at the
+Kaaba the timezone is that of Saudi Arabia. If in static plot mode, these are
+the times of program start. If in animation mode, these are "now".
+
+The globe is drawn with three shading states: day (no shading), dusk (partial
+shading), and night (full shading). Night is still lighter than black to keep
+the map visible.
+
+The image of the globe is from NASA's
+[Blue Marble Next Generation](https://visibleearth.nasa.gov/images/73751/july-blue-marble-next-generation-w-topography-and-bathymetry/73753l)
+dataset. This shows topography and bathymetry in "true colour" without
+atmospheric occlusion.
