@@ -198,8 +198,7 @@ class SolarPosition(NamedTuple):
             np.arctan(  # arccot(1/x) = arctan(x)
                 1/(
                     shadow + np.tan(
-                        # np.abs(  # is this appropriate?
-                        y
+                        np.abs(y)
                     )
                 )
             )
