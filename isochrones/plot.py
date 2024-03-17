@@ -1,5 +1,5 @@
 import itertools
-from datetime import datetime, tzinfo, timezone, timedelta
+from datetime import datetime, timedelta, timezone, tzinfo
 from typing import NamedTuple
 
 from cartopy.crs import Geodetic, Orthographic
