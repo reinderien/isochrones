@@ -19,7 +19,7 @@ class Prayer:
     name: str     # prayer name in romanized Arabic
     colour: str   # time-invariant graphing colour
 
-    def isochrone(self, globe_crs: CRS, utcnow: datetime) -> 'FloatArray':
+    def isochrone(self, globe_crs: CRS, sun: SolarPosition, utcnow: datetime) -> 'FloatArray':
         raise NotImplementedError()
 
 
@@ -29,9 +29,7 @@ class NoonPrayer(Prayer):
     def make_lon(sun: SolarPosition, y: 'FloatArray') -> 'FloatArray':
         return np.zeros_like(y)
 
-    def isochrone(self, globe_crs: CRS, utcnow: datetime) -> 'FloatArray':
-        sun = SolarPosition.from_time(utcnow=utcnow)
-        sun.test()
+    def isochrone(self, globe_crs: CRS, sun: SolarPosition, utcnow: datetime) -> 'FloatArray':
         return sun.isochrone_from_noon_angle(
             globe_crs=globe_crs, make_lon=self.make_lon,
         )
@@ -42,7 +40,7 @@ class RefractionPrayer(Prayer):
     angle: float  # degrees after sunrise or before sunset
     pm: bool      # true for any time after noon
 
-    def isochrone(self, globe_crs: CRS, utcnow: datetime) -> 'FloatArray':
+    def isochrone(self, globe_crs: CRS, sun: SolarPosition, utcnow: datetime) -> 'FloatArray':
         """
         :param globe_crs: The coordinate reference system of the globe, used when translating to the
                           night-rotated coordinate system. Typically Geodetic.
@@ -77,9 +75,7 @@ class ShadowPrayer(Prayer):
     def make_lon(self, sun: SolarPosition, y: 'FloatArray') -> 'FloatArray':
         return sun.shadow_angle(shadow=self.shadow, y=y)
 
-    def isochrone(self, globe_crs: CRS, utcnow: datetime) -> 'FloatArray':
-        sun = SolarPosition.from_time(utcnow=utcnow)
-        sun.test()
+    def isochrone(self, globe_crs: CRS, sun: SolarPosition, utcnow: datetime) -> 'FloatArray':
         return sun.isochrone_from_noon_angle(
             globe_crs=globe_crs, make_lon=self.make_lon,
         )

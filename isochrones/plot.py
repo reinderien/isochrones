@@ -14,14 +14,14 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.patches import Arc
 
 from .astro import (
-    KAABA_COORD, KAABA_TIMEZONE, ecliptic_parallel, inverse_geodesic,
+    KAABA_COORD, KAABA_TIMEZONE, inverse_geodesic, SolarPosition,
 )
 from .prayers import PRAYERS
 
 if typing.TYPE_CHECKING:
     from cartopy.mpl.geoaxes import GeoAxes
     from matplotlib.collections import PathCollection
-    from .types import Coord
+    from .types import Coord, FloatArray
 
 
 GEODESIC_COLOUR = 'green'
@@ -73,6 +73,37 @@ class HemisphereData(NamedTuple):
             geodetic=geodetic or Geodetic(globe=crs.globe),
             home=coord if parallel_on_self else endpoint,
             parallel_on_self=parallel_on_self, include_heading=include_heading,
+        )
+
+
+class FrameData(NamedTuple):
+    utcnow: datetime    # Time used to compute ecliptic parallel and isochrones
+    sun: SolarPosition  # Solar coordinates used to compute ecliptic parallel and isochrones
+    dusk: Nightshade    # Outer, lighter shading at sunrise/sunset; no refractive correction
+    night: Nightshade   # Inner, darker shading at dawn/dusk; high refractive correction
+    ecliptic_parallel: 'FloatArray'
+    prayers: tuple['FloatArray', ...]
+
+    @classmethod
+    def make(
+        cls, utcnow: datetime, geodetic: Geodetic, home: 'Coord',
+    ) -> 'FrameData':
+        sun = SolarPosition.from_time(utcnow)
+        sun.test()
+
+        # this angle should be made to match the angles in the prayer database
+        night_angle = 15
+
+        return cls(
+            utcnow=utcnow,
+            sun=sun,
+            dusk=Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33),
+            night=Nightshade(date=utcnow, delta=2, refraction=-night_angle, alpha=0.33),
+            ecliptic_parallel=sun.ecliptic_parallel(home=home, globe_crs=geodetic),
+            prayers=tuple(
+                prayer.isochrone(globe_crs=geodetic, sun=sun, utcnow=utcnow)
+                for prayer in PRAYERS
+            ),
         )
 
 
@@ -133,22 +164,15 @@ class HemispherePlots(NamedTuple):
             heading_art=heading_art,
         )
 
-    def update(
-        self, dusk: Nightshade, night: Nightshade, utcnow: datetime,
-    ) -> tuple[plt.Artist, ...]:
+    def update(self, data: FrameData) -> tuple[plt.Artist, ...]:
         """
         Update all artists as necessary, for either a static plot or one frame of an animation.
-        :param dusk: Outer, lighter shading at sunrise/sunset; no refractive correction
-        :param night: Inner, darker shading at dawn/dusk; high refractive correction
-        :param utcnow: Time used to compute ecliptic parallel and isochrones
         :return: All changed artists.
         """
-        local_now = utcnow.astimezone(self.data.timezone)
-
         changed = (
-            self.update_common(local_now=local_now, dusk=dusk, night=night)
-            + self.update_ecliptic_parallel(utcnow=utcnow)
-            + self.update_prayer_isochrones(utcnow=utcnow)
+            self.update_common(data)
+            + self.update_ecliptic_parallel(data)
+            + self.update_prayer_isochrones(data)
         )
         if self.data.include_heading:
             changed += self.update_heading()
@@ -200,11 +224,11 @@ class HemispherePlots(NamedTuple):
 
         return dusk_art, night_art, geodesic_art, origin_art, origin_time_art
 
-    def update_common(
-        self, dusk: Nightshade, night: Nightshade, local_now: datetime,
-    ) -> tuple[plt.Artist, ...]:
-        self.dusk_art._feature = dusk
-        self.night_art._feature = night
+    def update_common(self, data: FrameData) -> tuple[plt.Artist, ...]:
+        self.dusk_art._feature = data.dusk
+        self.night_art._feature = data.night
+
+        local_now = data.utcnow.astimezone(self.data.timezone)
         self.origin_time_art.set_text(
             local_now.strftime('%Y-%m-%d %H:%M:%S %z')
         )
@@ -231,9 +255,8 @@ class HemispherePlots(NamedTuple):
         )
         return parallel_art
 
-    def update_ecliptic_parallel(self, utcnow: datetime) -> tuple[plt.Artist, ...]:
-        xy = ecliptic_parallel(globe_crs=self.data.geodetic, utcnow=utcnow, home=self.data.home)
-        self.parallel_art.set_data(*xy)
+    def update_ecliptic_parallel(self, data: FrameData) -> tuple[plt.Artist, ...]:
+        self.parallel_art.set_data(*data.ecliptic_parallel)
         return self.parallel_art,
 
     @classmethod
@@ -254,9 +277,8 @@ class HemispherePlots(NamedTuple):
         ))
         return artists
 
-    def update_prayer_isochrones(self, utcnow: datetime) -> tuple[plt.Artist, ...]:
-        for prayer, artist in zip(PRAYERS, self.prayer_art):
-            xy = prayer.isochrone(globe_crs=self.data.geodetic, utcnow=utcnow)
+    def update_prayer_isochrones(self, data: FrameData) -> tuple[plt.Artist, ...]:
+        for xy, artist in zip(data.prayers, self.prayer_art):
             artist.set_data(*xy)
         return self.prayer_art
 
@@ -327,7 +349,6 @@ def setup_spherical(home_coord: 'Coord') -> tuple[
     Plot two hemispheres in the spherical coordinate system, the left centred on 'home' (the prayer
     location) and the right centred on the Kaaba. These are expected to partially overlap.
     :param home_coord: Home lon, lat in degrees
-    :param utcnow: Universal, tz-aware 'now' timestamp
     :return: the plot figure.
     """
     plt.style.use('dark_background')
@@ -358,13 +379,12 @@ def update_spherical(
     Update the figure for one frame
     :param utcnow: Universal, tz-aware 'now' timestamp
     """
-    # this angle should be made to match the angles in the prayer database
-    night = Nightshade(date=utcnow, delta=2, refraction=-15, alpha=0.33)
-    dusk = Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33)
-    return (
-        home_plot.update(utcnow=utcnow, dusk=dusk, night=night) +
-        kaaba_plot.update(utcnow=utcnow, dusk=dusk, night=night)
+    data = FrameData.make(
+        utcnow=utcnow,
+        geodetic=home_plot.data.geodetic,
+        home=home_plot.data.home,
     )
+    return home_plot.update(data) + kaaba_plot.update(data)
 
 
 def plot_spherical(
@@ -392,13 +412,15 @@ def animate_spherical(
 
     if start_utc is None:
         start_utc = datetime.now().astimezone(timezone.utc)
+        track_system = time_factor == 1
+    else:
+        track_system = False
     start = time.monotonic()
 
     def update(frame: int) -> tuple[plt.Artist, ...]:
         # Don't trust that frame * interval == elapsed... because it isn't
-
-        if time_factor == 1:
-            virtual_time = datetime.now().astimezone(timezone.utc)
+        if track_system:
+            virtual_time = start_utc or datetime.now().astimezone(timezone.utc)
         else:
             virtual_time = start_utc + timedelta(
                 seconds=time_factor*(time.monotonic() - start),

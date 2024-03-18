@@ -40,25 +40,6 @@ def inverse_geodesic(
     return distance, here_azimuth
 
 
-def ecliptic_parallel(
-    utcnow: datetime, home: 'Coord', globe_crs: 'CRS',
-) -> 'FloatArray':
-    # 'home' is in the rotational frame already. We need to convert it to the
-    # ecliptic ("rotated pole") frame.
-    sun = SolarPosition.from_time(utcnow=utcnow)
-    (ex, ey, ez), = sun.rotated_pole.transform_points(
-        x=np.array(home[:1]),
-        y=np.array(home[1:]), src_crs=globe_crs,
-    )
-
-    x = np.linspace(-180, 180, 181)
-    xyz: FloatArray = globe_crs.transform_points(
-        x=x, y=np.full_like(a=x, fill_value=ey),
-        src_crs=sun.rotated_pole,
-    ).T
-    return xyz[:-1]
-
-
 class SolarPosition(NamedTuple):
     """
     hamid           nightshade
@@ -216,6 +197,23 @@ class SolarPosition(NamedTuple):
         xyz: FloatArray = globe_crs.transform_points(
             x=np.rad2deg(x) + 180,
             y=np.rad2deg(y),
+            src_crs=self.rotated_pole,
+        ).T
+        return xyz[:-1]
+
+    def ecliptic_parallel(
+        self, home: 'Coord', globe_crs: 'CRS',
+    ) -> 'FloatArray':
+        # 'home' is in the rotational frame already. We need to convert it to the
+        # ecliptic ("rotated pole") frame.
+        (ex, ey, ez), = self.rotated_pole.transform_points(
+            x=np.array(home[:1]),
+            y=np.array(home[1:]), src_crs=globe_crs,
+        )
+
+        x = np.linspace(-180, 180, 181)
+        xyz: FloatArray = globe_crs.transform_points(
+            x=x, y=np.full_like(a=x, fill_value=ey),
             src_crs=self.rotated_pole,
         ).T
         return xyz[:-1]
