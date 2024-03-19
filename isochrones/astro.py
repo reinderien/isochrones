@@ -204,6 +204,16 @@ class SolarPosition(NamedTuple):
     def ecliptic_parallel(
         self, home: 'Coord', globe_crs: 'CRS',
     ) -> 'FloatArray':
+        """
+        Particularly close to the
+        [solstice](https://en.wikipedia.org/wiki/Solstice) (late June and late
+        December), the ecliptic parallel circle expands and contracts through
+        the day because your home ecliptic latitude moves up and down with
+        respect to the ecliptic equator. This should be changed so that its
+        positions across the globe correspond to positions on the isochrone for
+        the correct latitude.
+        """
+
         # 'home' is in the rotational frame already. We need to convert it to the
         # ecliptic ("rotated pole") frame.
         (ex, ey, ez), = self.rotated_pole.transform_points(
