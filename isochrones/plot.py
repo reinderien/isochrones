@@ -415,15 +415,14 @@ def animate_spherical(
         track_system = time_factor == 1
     else:
         track_system = False
-    start = time.monotonic()
 
     def update(frame: int) -> tuple[plt.Artist, ...]:
-        # Don't trust that frame * interval == elapsed... because it isn't
         if track_system:
+            # Don't trust that frame * interval == elapsed... because it isn't
             virtual_time = datetime.now().astimezone(timezone.utc)
         else:
             virtual_time = start_utc + timedelta(
-                seconds=time_factor*(time.monotonic() - start),
+                seconds=time_factor*frame,
             )
         return update_spherical(
             home_plot=home_plot, kaaba_plot=kaaba_plot,
