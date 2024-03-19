@@ -420,7 +420,7 @@ def animate_spherical(
     def update(frame: int) -> tuple[plt.Artist, ...]:
         # Don't trust that frame * interval == elapsed... because it isn't
         if track_system:
-            virtual_time = start_utc or datetime.now().astimezone(timezone.utc)
+            virtual_time = datetime.now().astimezone(timezone.utc)
         else:
             virtual_time = start_utc + timedelta(
                 seconds=time_factor*(time.monotonic() - start),
