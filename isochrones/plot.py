@@ -101,7 +101,7 @@ class FrameData(NamedTuple):
             night=Nightshade(date=utcnow, delta=2, refraction=-night_angle, alpha=0.33),
             ecliptic_parallel=sun.ecliptic_parallel(home=home, globe_crs=geodetic),
             prayers=tuple(
-                prayer.isochrone(globe_crs=geodetic, sun=sun, utcnow=utcnow)
+                prayer.isochrone(globe_crs=geodetic, sun=sun)
                 for prayer in PRAYERS
             ),
         )

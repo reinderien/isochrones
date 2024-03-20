@@ -40,6 +40,14 @@ def inverse_geodesic(
     return distance, here_azimuth
 
 
+def unwrap(p: float) -> float:
+    """
+    Vaguely similar to numpy.unwrap, but producing always-positive angles, and
+    operating on a scalar.
+    """
+    return p % (2*np.pi)
+
+
 class SolarPosition(NamedTuple):
     """
     hamid           nightshade
@@ -72,26 +80,27 @@ class SolarPosition(NamedTuple):
     @classmethod
     def from_time(cls, utcnow: datetime) -> 'SolarPosition':
         """
-        Adaptation of cartopy.feature.nightshade._solar_position but in rad"""
+        Adaptation of cartopy.feature.nightshade._solar_position but in rad
+        """
 
         # Centuries from J2000
-        T_UT1 = (_julian_day(utcnow) - 2_451_545.0)/36_525
+        T_UT1 = (_julian_day(utcnow) - 2_451_545.)/36_525
 
         # solar longitude (rad)
-        lambda_M_sun = (4.894950420143297 + 628.3319872064915*T_UT1) % (2*np.pi)
+        lambda_M_sun = unwrap(4.894950420143297 + 628.3319872064915*T_UT1)
 
         # solar anomaly (rad)
-        M_sun = (6.240035938744247 + 628.3019560241842*T_UT1) % (2*np.pi)
+        M_sun = unwrap(6.240035938744247 + 628.3019560241842*T_UT1)
 
         # ecliptic longitude (rad)
-        lambda_ecliptic = (
+        lambda_ecliptic = unwrap(
             + lambda_M_sun
             + 0.03341723399649053 * np.sin(M_sun)
             + 3.4897235311083654e-4 * np.sin(M_sun * 2)
         )
 
         # obliquity of the ecliptic (epsilon in Vallado's notation)
-        epsilon = 0.4090928022830742 - 2.2696610658784662e-4*T_UT1
+        epsilon = unwrap(0.4090928022830742 - 2.2696610658784662e-4*T_UT1)
 
         # declination of the sun
         delta_sun = np.arcsin(
@@ -107,14 +116,11 @@ class SolarPosition(NamedTuple):
         )
 
         # Convert to rad
-        theta_GMST = (theta_GMST % 86_400) * 7.27220521664304e-05
+        theta_GMST = unwrap((theta_GMST % 86_400) * 7.27220521664304e-05)
 
         # Right ascension calculations
-        numerator = (
-            np.cos(epsilon) * np.sin(lambda_ecliptic)
-            / np.cos(delta_sun)
-        )
-        denominator = np.cos(lambda_ecliptic) / np.cos(delta_sun)
+        numerator = np.cos(epsilon) * np.sin(lambda_ecliptic)
+        denominator = np.cos(lambda_ecliptic)
         alpha_sun = np.arctan2(numerator, denominator)
 
         # longitude is opposite of Greenwich Hour Angle (GHA)
@@ -126,15 +132,14 @@ class SolarPosition(NamedTuple):
         # need longitude (opposite direction)
         lat = delta_sun
         pole_lon = lon
-        if lat > 0:
-            pole_lat = lat - 0.5*np.pi
-            central_lon = np.pi
-        else:
-            pole_lat = lat + 0.5*np.pi
-            central_lon = 0
 
-        # Skip omega0: we don't have refraction (alpha) here, and we don't care about sunrise/
-        # sunset in this context
+        # Original Nightshade() has a conditional here that changes the angle addend to lat.
+        # That produces incorrect behaviour - an inverted coordinate system.
+        pole_lat = lat + 0.5*np.pi
+        central_lon = 0
+
+        # Postpone calculation of omega0 until isochrone routine: we don't have refraction
+        # (alpha) here, and we don't care about sunrise/sunset in this context
 
         return cls(
             date=utcnow, T_UT1=T_UT1, lambda_M_sun=lambda_M_sun, M_sun=M_sun,

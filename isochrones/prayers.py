@@ -4,12 +4,10 @@ from datetime import datetime
 
 import numpy as np
 from cartopy.crs import CRS
-from cartopy.feature.nightshade import Nightshade
 
 from .astro import SolarPosition
 
 if typing.TYPE_CHECKING:
-    from array import array
     from .types import FloatArray
 
 
@@ -19,7 +17,7 @@ class Prayer:
     name: str     # prayer name in romanized Arabic
     colour: str   # time-invariant graphing colour
 
-    def isochrone(self, globe_crs: CRS, sun: SolarPosition, utcnow: datetime) -> 'FloatArray':
+    def isochrone(self, globe_crs: CRS, sun: SolarPosition) -> 'FloatArray':
         raise NotImplementedError()
 
 
@@ -29,7 +27,7 @@ class NoonPrayer(Prayer):
     def make_lon(sun: SolarPosition, y: 'FloatArray') -> 'FloatArray':
         return np.zeros_like(y)
 
-    def isochrone(self, globe_crs: CRS, sun: SolarPosition, utcnow: datetime) -> 'FloatArray':
+    def isochrone(self, globe_crs: CRS, sun: SolarPosition) -> 'FloatArray':
         return sun.isochrone_from_noon_angle(
             globe_crs=globe_crs, make_lon=self.make_lon,
         )
@@ -40,7 +38,7 @@ class RefractionPrayer(Prayer):
     angle: float  # degrees after sunrise or before sunset
     pm: bool      # true for any time after noon
 
-    def isochrone(self, globe_crs: CRS, sun: SolarPosition, utcnow: datetime) -> 'FloatArray':
+    def isochrone(self, globe_crs: CRS, sun: SolarPosition) -> 'FloatArray':
         """
         :param globe_crs: The coordinate reference system of the globe, used when translating to the
                           night-rotated coordinate system. Typically Geodetic.
@@ -48,23 +46,36 @@ class RefractionPrayer(Prayer):
         :return: A 2*n array of x, y coordinates in degrees; the boundary of "night" where the
                  darkness level is controlled by self.angle.
         """
-        night = Nightshade(date=utcnow, delta=2, refraction=self.angle)
-        geom, = night.geometries()
-        xarray: array[float]
-        yarray: array[float]
-        xarray, yarray = geom.boundary.coords.xy
-        xy: FloatArray = globe_crs.transform_points(
-            x=np.frombuffer(xarray),
-            y=np.frombuffer(yarray), src_crs=night.crs,
-        ).T[:-1]
 
-        # This is wasteful - we always throw away half of the geometry, even if it's symmetrical.
-        # However, it's either that or copy a bunch of code from cartopy.
-        noon_idx = xy.shape[1]//2
-        if self.pm:
-            xy = xy[:, :noon_idx]
-        else:
-            xy = xy[:, noon_idx:]
+        # Adaptation of Nightshade(), but with a coordinate system fixup, and only populating one
+        # side of daytime
+        refraction = np.deg2rad(self.angle)
+        npts = 91
+
+        # Fill latitudes up
+        y = np.linspace(-0.5*np.pi - refraction, 0.5*np.pi + refraction, npts)
+
+        # Solve the generalized equation for omega0, which is the
+        # angle of sunrise/sunset from solar noon
+        # We need to clip the input to arccos to [-1, 1] due to floating
+        # point precision and arccos creating nans for values outside
+        # of the domain
+        arccos_tmp = np.clip(
+            a=np.sin(refraction) / np.cos(y),
+            a_min=-1, a_max=1,
+        )
+        omega0 = np.arccos(arccos_tmp)
+
+        # Fill the longitude values from the offset for midnight.
+        x = omega0 - np.pi
+        if not self.pm:
+            x = -x
+        
+        xy: FloatArray = globe_crs.transform_points(
+            x=np.rad2deg(x),
+            y=np.rad2deg(y),
+            src_crs=sun.rotated_pole,
+        ).T[:-1]
         return xy
 
 
@@ -75,7 +86,7 @@ class ShadowPrayer(Prayer):
     def make_lon(self, sun: SolarPosition, y: 'FloatArray') -> 'FloatArray':
         return sun.shadow_angle(shadow=self.shadow, y=y)
 
-    def isochrone(self, globe_crs: CRS, sun: SolarPosition, utcnow: datetime) -> 'FloatArray':
+    def isochrone(self, globe_crs: CRS, sun: SolarPosition) -> 'FloatArray':
         return sun.isochrone_from_noon_angle(
             globe_crs=globe_crs, make_lon=self.make_lon,
         )
