@@ -32,10 +32,13 @@ def inverse_geodesic(
     Calculate the inverse geodesic parameters between the prayer location and the Kaaba.
     """
     geodesic = geodetic.get_geod()
-    return geodesic.inv(
+
+    # unpack-repack to help out the type system
+    forward, back, distance = geodesic.inv(
         lons1=coord[0], lons2=endpoint[0],
         lats1=coord[1], lats2=endpoint[1],
     )
+    return forward, back, distance
 
 
 def unwrap(p: float) -> float:

@@ -82,7 +82,11 @@ class HemisphereData(NamedTuple):
         )
         sphere = sphere or Geodetic(globe=crs.globe)
 
-        if geodesic_distance is None:
+        if (
+            geodesic_distance is None
+            or geodesic_azm_ell_fwd is None or geodesic_azm_sph_fwd is None
+            or geodesic_azm_ell_bck is None or geodesic_azm_sph_bck is None
+        ):
             # More accurate ellipsoid quantities, for text
             geodesic_azm_ell_fwd, geodesic_azm_ell_bck, geodesic_distance = inverse_geodesic(
                 geodetic=ellipsoid, coord=coord, endpoint=endpoint,
