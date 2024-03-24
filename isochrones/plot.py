@@ -11,6 +11,7 @@ from cartopy.mpl.feature_artist import FeatureArtist
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.patches import Arc
+from matplotlib.ticker import MultipleLocator
 
 from .astro import (
     KAABA_COORD, KAABA_TIMEZONE, inverse_geodesic, SolarPosition,
@@ -115,7 +116,6 @@ class HemispherePlots(NamedTuple):
     origin_art: 'PathCollection'  # Cross at "here"
     origin_time_art: plt.Text     # Time text at "here"
     prayer_art: tuple[plt.Line2D, ...]  # All prayer isochrones
-    north_line_art: plt.Line2D | None
     north_arc_art: Arc | None     # Arc from north to geodesic
     heading_art: plt.Text | None  # Heading text, if we have it
 
@@ -146,16 +146,16 @@ class HemispherePlots(NamedTuple):
             dusk_art, night_art, geodesic_art, origin_art, origin_time_art,
         ) = cls.setup_common(ax=ax, data=data)
         prayer_art = cls.setup_prayer_isochrones(ax=ax, data=data)
-        north_line_art, north_arc_art, heading_art = (
+        north_arc_art, heading_art = (
             cls.setup_heading(ax=ax, data=data)
-            if data.include_heading else (None, None, None)
+            if data.include_heading else (None, None)
         )
 
         return cls(
             data=data, ax=ax,
             dusk_art=dusk_art, night_art=night_art, geodesic_art=geodesic_art,
             origin_art=origin_art, origin_time_art=origin_time_art,
-            prayer_art=prayer_art, north_line_art=north_line_art, north_arc_art=north_arc_art,
+            prayer_art=prayer_art, north_arc_art=north_arc_art,
             heading_art=heading_art,
         )
 
@@ -180,7 +180,15 @@ class HemispherePlots(NamedTuple):
         """
         ax.set_title(f'{data.name} hemisphere')
         ax.background_img(name='blue-marble-next-generation', resolution='high')
-        ax.gridlines()
+        ax.gridlines(
+            xlocs=MultipleLocator(base=45),
+            ylocs=MultipleLocator(base=30), color='white', alpha=0.4,
+        )
+        ax.gridlines(
+            xlocs=data.home[:1],
+            ylocs=data.home[1:], color='white', alpha=0.8,
+        )
+
 
     @classmethod
     def setup_common(
@@ -260,7 +268,7 @@ class HemispherePlots(NamedTuple):
     def setup_heading(
         cls, ax: 'GeoAxes', data: HemisphereData,
     ) -> tuple[
-        plt.Line2D, Arc, plt.Text,
+        Arc, plt.Text,
     ]:
         """
         Plot a 'north' indicator, a heading arc from north to the geodesic, and the departing
@@ -269,12 +277,6 @@ class HemispherePlots(NamedTuple):
         distance, here_azimuth = inverse_geodesic(coord=data.coord, endpoint=data.endpoint)
 
         north = 0
-        north_line_art, = ax.plot(
-            [data.coord[0], data.coord[0]],
-            [data.coord[1], data.coord[1] + 20],
-            transform=data.geodetic, zorder=10,
-            c=HEADING_COLOUR,
-        )
         north_arc_art = Arc(
             xy=data.coord, width=10, height=10,
             transform=data.geodetic, zorder=10,
@@ -294,13 +296,13 @@ class HemispherePlots(NamedTuple):
             transform=ax.transAxes, zorder=12,
             color=ANNOTATE_COLOUR,  # it's always "night" in space
         )
-        return north_line_art, north_arc_art, heading_art
+        return north_arc_art, heading_art
 
     def update_heading(self) -> tuple[plt.Artist, ...]:
         # None of these have updated, but they need to be redrawn on top of the nightshades
         return tuple(
             artist
-            for artist in (self.north_line_art, self.north_arc_art, self.heading_art)
+            for artist in (self.north_arc_art, self.heading_art)
             if artist is not None
         )
 
