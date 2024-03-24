@@ -80,7 +80,6 @@ class FrameData(NamedTuple):
     sun: SolarPosition  # Solar coordinates used to compute ecliptic parallel and isochrones
     dusk: Nightshade    # Outer, lighter shading at sunrise/sunset; no refractive correction
     night: Nightshade   # Inner, darker shading at dawn/dusk; high refractive correction
-    ecliptic_parallel: 'FloatArray'
     prayers: tuple['FloatArray', ...]
 
     @classmethod
@@ -98,7 +97,6 @@ class FrameData(NamedTuple):
             sun=sun,
             dusk=Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33),
             night=Nightshade(date=utcnow, delta=2, refraction=-night_angle, alpha=0.33),
-            ecliptic_parallel=sun.ecliptic_parallel(home=home, globe_crs=geodetic),
             prayers=tuple(
                 prayer.isochrone(globe_crs=geodetic, sun=sun)
                 for prayer in PRAYERS
@@ -116,7 +114,6 @@ class HemispherePlots(NamedTuple):
     geodesic_art: plt.Line2D      # Geodesic "qibla" line, straight due to orthographic projn
     origin_art: 'PathCollection'  # Cross at "here"
     origin_time_art: plt.Text     # Time text at "here"
-    parallel_art: plt.Line2D      # Ecliptic parallel through home
     prayer_art: tuple[plt.Line2D, ...]  # All prayer isochrones
     north_line_art: plt.Line2D | None
     north_arc_art: Arc | None     # Arc from north to geodesic
@@ -148,7 +145,6 @@ class HemispherePlots(NamedTuple):
         (
             dusk_art, night_art, geodesic_art, origin_art, origin_time_art,
         ) = cls.setup_common(ax=ax, data=data)
-        parallel_art = cls.setup_ecliptic_parallel(ax=ax, data=data)
         prayer_art = cls.setup_prayer_isochrones(ax=ax, data=data)
         north_line_art, north_arc_art, heading_art = (
             cls.setup_heading(ax=ax, data=data)
@@ -158,7 +154,7 @@ class HemispherePlots(NamedTuple):
         return cls(
             data=data, ax=ax,
             dusk_art=dusk_art, night_art=night_art, geodesic_art=geodesic_art,
-            origin_art=origin_art, origin_time_art=origin_time_art, parallel_art=parallel_art,
+            origin_art=origin_art, origin_time_art=origin_time_art,
             prayer_art=prayer_art, north_line_art=north_line_art, north_arc_art=north_arc_art,
             heading_art=heading_art,
         )
@@ -170,7 +166,6 @@ class HemispherePlots(NamedTuple):
         """
         changed = (
             self.update_common(data)
-            + self.update_ecliptic_parallel(data)
             + self.update_prayer_isochrones(data)
         )
         if self.data.include_heading:
@@ -237,26 +232,6 @@ class HemispherePlots(NamedTuple):
         return (
             self.dusk_art, self.night_art, self.geodesic_art, self.origin_art, self.origin_time_art,
         )
-
-    @classmethod
-    def setup_ecliptic_parallel(
-        cls, ax: 'GeoAxes', data: HemisphereData,
-    ) -> plt.Line2D:
-        """
-        Plot a parallel in the ecliptic (not rotational) frame, through "home". Depicts the progress
-        of solar time across the globe for home's latitude.
-        """
-        parallel_art: plt.Line2D
-        parallel_art, = ax.plot(
-            [], transform=data.geodetic, zorder=9,
-            # label='ecliptic parallel',  # long and not particularly necessary
-            c='grey',
-        )
-        return parallel_art
-
-    def update_ecliptic_parallel(self, data: FrameData) -> tuple[plt.Artist, ...]:
-        self.parallel_art.set_data(*data.ecliptic_parallel)
-        return self.parallel_art,
 
     @classmethod
     def setup_prayer_isochrones(
