@@ -6,10 +6,9 @@ from zoneinfo import ZoneInfo
 import numpy as np
 from cartopy.crs import RotatedPole
 from cartopy.feature.nightshade import _julian_day, _solar_position
-from cartopy.geodesic import Geodesic
 
 if typing.TYPE_CHECKING:
-    from cartopy.crs import CRS
+    from cartopy.crs import CRS, Geodetic
     from .types import Coord, FloatArray
 
     class LonFromLat(typing.Protocol):
@@ -23,19 +22,20 @@ KAABA_TIMEZONE = ZoneInfo('Asia/Riyadh')
 
 
 def inverse_geodesic(
-    coord: 'Coord', endpoint: 'Coord',
-) -> 'Coord':
+    geodetic: 'Geodetic', coord: 'Coord', endpoint: 'Coord',
+) -> tuple[
+    float,  # forward azimuth, degrees counterclockwise from east
+    float,  # back azimuth, degrees counterclockwise from east
+    float,  # distance, m
+]:
     """
-    Calculate the inverse geodesic parameters between the prayer location and the Kaaba. This
-    uses WGS-84 and not the spherical CRS - so we use our own Geodesic instead of the spherical
-    geodesic instance in Hemisphere.
-    :return: Distance in metres, and departing angle in degrees counterclockwise from east.
+    Calculate the inverse geodesic parameters between the prayer location and the Kaaba.
     """
-    geodesic = Geodesic()
-    (distance, here_azimuth, other_azimuth), = geodesic.inverse(
-        points=coord, endpoints=endpoint,
+    geodesic = geodetic.get_geod()
+    return geodesic.inv(
+        lons1=coord[0], lons2=endpoint[0],
+        lats1=coord[1], lats2=endpoint[1],
     )
-    return distance, here_azimuth
 
 
 def unwrap(p: float) -> float:

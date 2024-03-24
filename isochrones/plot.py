@@ -39,12 +39,23 @@ class HemisphereData(NamedTuple):
     still use the more accurate elliptical WGS-84.
     """
 
-    name: str                # Hemisphere name, English or romanized Arabic
-    coord: 'Coord'           # "here" lon, lat in degrees; hemisphere centred on this
-    endpoint: 'Coord'        # "there" lon, lat in degrees; geodesic heads there
-    home: 'Coord'            # "home" lon, lat in degrees; ecliptic parallel here
-    crs: Orthographic        # Projective coordinate system for graphing
-    geodetic: Geodetic       # Globe coordinate system; this one is spherical
+    name: str            # Hemisphere name, English or romanized Arabic
+    coord: 'Coord'       # "here" lon, lat in degrees; hemisphere centred on this
+    endpoint: 'Coord'    # "there" lon, lat in degrees; geodesic heads there
+    home: 'Coord'        # "home" lon, lat in degrees; ecliptic parallel here
+    crs: Orthographic    # Projective coordinate system for graphing
+    sphere: Geodetic     # Spherical globe coordinate system
+    ellipsoid: Geodetic  # Ellipsoid globe coordinate system
+
+    # Geodesic from coord to endpoint (forward), and reverse (back).
+    # All azimuths are in degrees counterclockwise from east. Sphericals are used for plotting;
+    # ellipsoidals are used for text.
+    geodesic_azm_ell_fwd: float
+    geodesic_azm_sph_fwd: float
+    geodesic_azm_ell_bck: float
+    geodesic_azm_sph_bck: float
+    geodesic_distance: float  # from coord to endpoint, m
+
     timezone: tzinfo | None  # None means local timezone. Used for date display.
     parallel_on_self: bool   # Is the ecliptic parallel on 'coord'?
     include_heading: bool    # Do we include the geodesic heading on this plot?
@@ -53,24 +64,40 @@ class HemisphereData(NamedTuple):
     def make(
         cls,
         name: str,
-        coord: 'Coord',
-        endpoint: 'Coord',
+        coord: 'Coord', endpoint: 'Coord',
         local_timezone: tzinfo | None,
-        geodetic: Geodetic | None = None,
-        parallel_on_self: bool = False,
-        include_heading: bool = False,
+        ellipsoid: Geodetic, sphere: Geodetic | None = None,
+        geodesic_azm_ell_fwd: float | None = None, geodesic_azm_sph_fwd: float | None = None,
+        geodesic_azm_ell_bck: float | None = None, geodesic_azm_sph_bck: float | None = None,
+        geodesic_distance: float | None = None,
+        parallel_on_self: bool = False, include_heading: bool = False,
     ) -> 'HemisphereData':
         """
-        :param geodetic: if None, then a spherical geodetic will be made.
+        :param sphere: if None, then a spherical geodetic will be made.
         :return: A new HemisphereData, invariant; no artist objects.
         """
         crs = Orthographic(
             central_longitude=coord[0],
-            central_latitude=coord[1], globe=geodetic and geodetic.globe,
+            central_latitude=coord[1], globe=sphere and sphere.globe,
         )
+        sphere = sphere or Geodetic(globe=crs.globe)
+
+        if geodesic_distance is None:
+            # More accurate ellipsoid quantities, for text
+            geodesic_azm_ell_fwd, geodesic_azm_ell_bck, geodesic_distance = inverse_geodesic(
+                geodetic=ellipsoid, coord=coord, endpoint=endpoint,
+            )
+            # Less accurate spherical quantities, for display on the orthographic
+            geodesic_azm_sph_fwd, geodesic_azm_sph_bck, _ = inverse_geodesic(
+                geodetic=sphere, coord=coord, endpoint=endpoint,
+            )
+
         return cls(
             name=name, coord=coord, endpoint=endpoint, crs=crs, timezone=local_timezone,
-            geodetic=geodetic or Geodetic(globe=crs.globe),
+            sphere=sphere, ellipsoid=ellipsoid,
+            geodesic_azm_ell_fwd=geodesic_azm_ell_fwd, geodesic_azm_ell_bck=geodesic_azm_ell_bck,
+            geodesic_azm_sph_fwd=geodesic_azm_sph_fwd, geodesic_azm_sph_bck=geodesic_azm_sph_bck,
+            geodesic_distance=geodesic_distance,
             home=coord if parallel_on_self else endpoint,
             parallel_on_self=parallel_on_self, include_heading=include_heading,
         )
@@ -85,7 +112,7 @@ class FrameData(NamedTuple):
 
     @classmethod
     def make(
-        cls, utcnow: datetime, geodetic: Geodetic, home: 'Coord',
+        cls, utcnow: datetime, sphere: Geodetic,
     ) -> 'FrameData':
         sun = SolarPosition.from_time(utcnow)
         sun.test()
@@ -99,7 +126,7 @@ class FrameData(NamedTuple):
             dusk=Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33),
             night=Nightshade(date=utcnow, delta=2, refraction=-night_angle, alpha=0.33),
             prayers=tuple(
-                prayer.isochrone(globe_crs=geodetic, sun=sun)
+                prayer.isochrone(globe_crs=sphere, sun=sun)
                 for prayer in PRAYERS
             ),
         )
@@ -189,7 +216,6 @@ class HemispherePlots(NamedTuple):
             ylocs=data.home[1:], color='white', alpha=0.8,
         )
 
-
     @classmethod
     def setup_common(
         cls, ax: 'GeoAxes', data: HemisphereData,
@@ -208,19 +234,19 @@ class HemispherePlots(NamedTuple):
         geodesic_art, = ax.plot(
             [data.coord[0], data.endpoint[0]],
             [data.coord[1], data.endpoint[1]],
-            transform=data.geodetic, zorder=10, label='Qibla',
+            transform=data.sphere, zorder=10, label='Qibla',
             c=GEODESIC_COLOUR,
         )
 
         origin_art: plt.PathCollection = ax.scatter(
             [data.coord[0]], [data.coord[1]],
-            transform=data.geodetic, zorder=11, marker='+',
+            transform=data.sphere, zorder=11, marker='+',
             c=FEATURE_COLOUR,
         )
 
         origin_time_art: plt.Text = ax.text(
             x=data.coord[0], y=data.coord[1], rotation=270, s='',
-            transform=data.geodetic, zorder=12, ha='left', va='top',
+            transform=data.sphere, zorder=12, ha='left', va='top',
             c=ANNOTATE_COLOUR,
         )
 
@@ -252,7 +278,7 @@ class HemispherePlots(NamedTuple):
         """
         artists = tuple(itertools.chain.from_iterable(
             ax.plot(
-                [], transform=data.geodetic, zorder=10,
+                [], transform=data.sphere, zorder=10,
                 label=prayer.name, c=prayer.colour,
             )
             for prayer in PRAYERS
@@ -271,28 +297,27 @@ class HemispherePlots(NamedTuple):
         Arc, plt.Text,
     ]:
         """
-        Plot a 'north' indicator, a heading arc from north to the geodesic, and the departing
-        heading in degrees. Most of this is frame-invariant except the heading text colour.
+        Plot a heading arc from north to the geodesic, and the departing
+        heading in degrees. All frame-invariant.
         """
-        distance, here_azimuth = inverse_geodesic(coord=data.coord, endpoint=data.endpoint)
 
         north = 0
         north_arc_art = Arc(
             xy=data.coord, width=10, height=10,
-            transform=data.geodetic, zorder=10,
-            theta1=90 - here_azimuth, theta2=90 - north,
+            transform=data.sphere, zorder=10,
+            theta1=90 - data.geodesic_azm_sph_fwd, theta2=90 - north,
             color=HEADING_COLOUR,
         )
         ax.add_patch(north_arc_art)
 
         heading_art: plt.Text = ax.text(
-            x=data.coord[0], y=data.coord[1] + 6, s=f'{here_azimuth:.1f}°',
-            transform=data.geodetic, zorder=12,
+            x=data.coord[0], y=data.coord[1] + 6, s=f'{data.geodesic_azm_ell_fwd:.1f}°',
+            transform=data.sphere, zorder=12,
             color=ANNOTATE_COLOUR,
         )
         ax.text(
             x=0.92, y=0.82,
-            s=f'Geodesic: {distance*1e-3:,.0f} km',
+            s=f'Geodesic: {data.geodesic_distance*1e-3:,.0f} km',
             transform=ax.transAxes, zorder=12,
             color=ANNOTATE_COLOUR,  # it's always "night" in space
         )
@@ -330,13 +355,19 @@ def setup_spherical(home_coord: 'Coord') -> tuple[
     plt.style.use('dark_background')
     fig: plt.Figure = plt.figure()
 
+    ellipsoid = Geodetic()
     home_data = HemisphereData.make(
         name='Home', coord=home_coord, endpoint=KAABA_COORD, local_timezone=None,
-        include_heading=True, parallel_on_self=True,
+        ellipsoid=ellipsoid, include_heading=True, parallel_on_self=True,
     )
     kaaba_data = HemisphereData.make(
         name='Kaaba', coord=KAABA_COORD, endpoint=home_coord, local_timezone=KAABA_TIMEZONE,
-        geodetic=home_data.geodetic,
+        ellipsoid=ellipsoid, sphere=home_data.sphere,
+        geodesic_azm_ell_fwd=home_data.geodesic_azm_ell_bck,
+        geodesic_azm_ell_bck=home_data.geodesic_azm_ell_fwd,
+        geodesic_azm_sph_fwd=home_data.geodesic_azm_sph_bck,
+        geodesic_azm_sph_bck=home_data.geodesic_azm_sph_fwd,
+        geodesic_distance=home_data.geodesic_distance,
     )
 
     home_plot = HemispherePlots.make(figure=fig, index=1, data=home_data)
@@ -355,11 +386,7 @@ def update_spherical(
     Update the figure for one frame
     :param utcnow: Universal, tz-aware 'now' timestamp
     """
-    data = FrameData.make(
-        utcnow=utcnow,
-        geodetic=home_plot.data.geodetic,
-        home=home_plot.data.home,
-    )
+    data = FrameData.make(utcnow=utcnow, sphere=home_plot.data.sphere)
     return home_plot.update(data) + kaaba_plot.update(data)
 
 
