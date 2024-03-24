@@ -30,6 +30,7 @@ def inverse_geodesic(
 ]:
     """
     Calculate the inverse geodesic parameters between the prayer location and the Kaaba.
+    Validate with e.g. https://geographiclib.sourceforge.io/cgi-bin/GeodSolve
     """
     geodesic = geodetic.get_geod()
 

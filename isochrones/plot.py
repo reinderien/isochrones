@@ -4,13 +4,15 @@ import typing
 from datetime import datetime, timedelta, timezone, tzinfo
 from typing import NamedTuple
 
+import numpy as np
 from cartopy.crs import Geodetic, Orthographic
 from cartopy.feature import ShapelyFeature
 from cartopy.feature.nightshade import Nightshade
 from cartopy.mpl.feature_artist import FeatureArtist
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
-from matplotlib.patches import Arc
+from matplotlib.patches import PathPatch
+from matplotlib.path import Path
 from matplotlib.ticker import MultipleLocator
 
 from .astro import (
@@ -21,6 +23,8 @@ from .prayers import PRAYERS
 if typing.TYPE_CHECKING:
     from cartopy.mpl.geoaxes import GeoAxes
     from matplotlib.collections import PathCollection
+    from matplotlib.typing import ColourType
+    from pyproj import CRS
     from .types import Coord, FloatArray
 
 
@@ -30,6 +34,30 @@ ANNOTATE_COLOUR = 'white'
 HEADING_COLOUR = 'red'
 
 logger = logging.getLogger(__name__)
+
+
+def hires_arc(
+    centre: 'Coord',
+    radius: float,
+    theta1: float,
+    theta2: float,
+    n: int = 10,
+    colour: typing.Optional['ColourType'] = None,
+    transform: typing.Optional['CRS'] = None,
+    zorder: int | None = None,
+) -> PathPatch:
+    codes = np.full(shape=n, fill_value=Path.LINETO, dtype=Path.code_type)
+    codes[0] = Path.MOVETO
+
+    angles = np.linspace(start=theta1, stop=theta2, num=n)
+    vertices = centre + radius*np.stack((
+        np.cos(angles), np.sin(angles),
+    ), axis=1)
+
+    return PathPatch(
+        path=Path(vertices=vertices, codes=codes),
+        edgecolor=colour, facecolor='none', zorder=zorder, transform=transform,
+    )
 
 
 class HemisphereData(NamedTuple):
@@ -92,9 +120,22 @@ class HemisphereData(NamedTuple):
                 geodetic=ellipsoid, coord=coord, endpoint=endpoint,
             )
             # Less accurate spherical quantities, for display on the orthographic
-            geodesic_azm_sph_fwd, geodesic_azm_sph_bck, _ = inverse_geodesic(
-                geodetic=sphere, coord=coord, endpoint=endpoint,
+            # geodesic_azm_sph_fwd, geodesic_azm_sph_bck, _ = inverse_geodesic(
+            #     geodetic=sphere, coord=coord, endpoint=endpoint,
+            # )
+
+            # This is horrible, but it's the only way I can get the geodesic to match the
+            # departing angle
+            result = sphere.get_geod().inv_intermediate(
+                lon1=coord[0], lat1=coord[1],
+                lon2=endpoint[0], lat2=endpoint[1],
+                npts=int(endpoint[0] - coord[0])//10,
             )
+            geodesic_azm_sph_fwd = 90 - np.rad2deg(np.arctan2(
+                result.lats[0] - coord[1],
+                result.lons[0] - coord[0],
+            ))
+            geodesic_azm_sph_bck = 0
 
         return cls(
             name=name, coord=coord, endpoint=endpoint, crs=crs, timezone=local_timezone,
@@ -147,7 +188,7 @@ class HemispherePlots(NamedTuple):
     origin_art: 'PathCollection'  # Cross at "here"
     origin_time_art: plt.Text     # Time text at "here"
     prayer_art: tuple[plt.Line2D, ...]  # All prayer isochrones
-    north_arc_art: Arc | None     # Arc from north to geodesic
+    north_arc_art: PathPatch | None  # Arc from north to geodesic
     heading_art: plt.Text | None  # Heading text, if we have it
 
     @classmethod
@@ -298,7 +339,7 @@ class HemispherePlots(NamedTuple):
     def setup_heading(
         cls, ax: 'GeoAxes', data: HemisphereData,
     ) -> tuple[
-        Arc, plt.Text,
+        PathPatch, plt.Text,
     ]:
         """
         Plot a heading arc from north to the geodesic, and the departing
@@ -306,11 +347,12 @@ class HemispherePlots(NamedTuple):
         """
 
         north = 0
-        north_arc_art = Arc(
-            xy=data.coord, width=10, height=10,
+        north_arc_art = hires_arc(
+            centre=data.coord, radius=10,
             transform=data.sphere, zorder=10,
-            theta1=90 - data.geodesic_azm_sph_fwd, theta2=90 - north,
-            color=HEADING_COLOUR,
+            theta1=np.deg2rad(90 - data.geodesic_azm_sph_fwd),
+            theta2=np.deg2rad(90 - north),
+            colour=HEADING_COLOUR,
         )
         ax.add_patch(north_arc_art)
 
