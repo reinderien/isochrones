@@ -1,11 +1,10 @@
 import typing
 from dataclasses import dataclass
-from datetime import datetime
 
 import numpy as np
 from cartopy.crs import CRS
 
-from .astro import SolarPosition
+from .astro import SolarPosition, shadow_angle
 
 if typing.TYPE_CHECKING:
     from .types import FloatArray
@@ -24,7 +23,7 @@ class Prayer:
 @dataclass(frozen=True, slots=True)
 class NoonPrayer(Prayer):
     @staticmethod
-    def make_lon(sun: SolarPosition, y: 'FloatArray') -> 'FloatArray':
+    def make_lon(y: 'FloatArray') -> 'FloatArray':
         return np.zeros_like(y)
 
     def isochrone(self, globe_crs: CRS, sun: SolarPosition) -> 'FloatArray':
@@ -42,7 +41,6 @@ class RefractionPrayer(Prayer):
         """
         :param globe_crs: The coordinate reference system of the globe, used when translating to the
                           night-rotated coordinate system. Typically Geodetic.
-        :param utcnow: Timezone-aware datetime used to locate the sun
         :return: A 2*n array of x, y coordinates in degrees; the boundary of "night" where the
                  darkness level is controlled by self.angle.
         """
@@ -83,8 +81,8 @@ class RefractionPrayer(Prayer):
 class ShadowPrayer(Prayer):
     shadow: float
 
-    def make_lon(self, sun: SolarPosition, y: 'FloatArray') -> 'FloatArray':
-        return sun.shadow_angle(shadow=self.shadow, y=y)
+    def make_lon(self, y: 'FloatArray') -> 'FloatArray':
+        return shadow_angle(shadow=self.shadow, y=y)
 
     def isochrone(self, globe_crs: CRS, sun: SolarPosition) -> 'FloatArray':
         return sun.isochrone_from_noon_angle(

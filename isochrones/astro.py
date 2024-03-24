@@ -13,9 +13,7 @@ if typing.TYPE_CHECKING:
     from .types import Coord, FloatArray
 
     class LonFromLat(typing.Protocol):
-        def __call__(
-            self, sun: 'SolarPosition', y: 'FloatArray',
-        ) -> 'FloatArray':
+        def __call__(self, y: 'FloatArray') -> 'FloatArray':
             ...
 
 
@@ -46,6 +44,34 @@ def unwrap(p: float) -> float:
     operating on a scalar.
     """
     return p % (2*np.pi)
+
+
+def shadow_angle(y: 'FloatArray', shadow: float) -> 'FloatArray':
+    """
+    Based on https://radhifadlillah.com/blog/2020-09-06-calculating-prayer-times/
+    Return the angular difference in rad between solar noon and the 'asr'
+    """
+    # The reference implementations rely on delta_sun (declination). Since
+    # we defer declination calculation to a transformation after this
+    # function, it's already accounted for, and any declination terms are
+    # replaced with sin(0)=0 and cos(0)=1.
+    arg = np.sin(
+        np.arctan(  # arccot(1/x) = arctan(x)
+            1/(
+                shadow + np.tan(
+                    np.abs(y)
+                )
+            )
+        )
+    ) / np.cos(y)
+
+    # Let the NaNs through, but don't complain about them.
+    # arg = np.clip(arg, a_min=-1, a_max=1)
+    is_valid = (arg >= -1) & (arg <= +1)
+    A: FloatArray = np.full_like(a=arg, fill_value=np.nan)
+    A[is_valid] = np.arccos(arg[is_valid])
+
+    return A
 
 
 class SolarPosition(NamedTuple):
@@ -161,44 +187,16 @@ class SolarPosition(NamedTuple):
             rtol=0, atol=1e-12,
         )
 
-    def shadow_angle(self, y: 'FloatArray', shadow: float) -> 'FloatArray':
-        """
-        Based on https://radhifadlillah.com/blog/2020-09-06-calculating-prayer-times/
-        Return the angular difference in rad between solar noon and the 'asr'
-        """
-        # The reference implementations rely on delta_sun (declination). Since
-        # we defer declination calculation to a transformation after this
-        # function, it's already accounted for, and any declination terms are
-        # replaced with sin(0)=0 and cos(0)=1.
-        arg = np.sin(
-            np.arctan(  # arccot(1/x) = arctan(x)
-                1/(
-                    shadow + np.tan(
-                        np.abs(y)
-                    )
-                )
-            )
-        ) / np.cos(y)
-
-        # Let the NaNs through, but don't complain about them.
-        # arg = np.clip(arg, a_min=-1, a_max=1)
-        is_valid = (arg >= -1) & (arg <= +1)
-        A: FloatArray = np.full_like(a=arg, fill_value=np.nan)
-        A[is_valid] = np.arccos(arg[is_valid])
-
-        return A
-
     def isochrone_from_noon_angle(
         self, globe_crs: 'CRS', make_lon: 'LonFromLat',
     ) -> 'FloatArray':
         """
         :param globe_crs: The coordinate reference system of the globe, used when translating to the
                           night-rotated coordinate system. Typically Geodetic.
-        :param utcnow: Timezone-aware datetime used to locate the sun
         :return: A 2*n array of x, y coordinates in degrees; the isochrone curve.
         """
         y = np.linspace(start=-np.pi/2, stop=+np.pi/2, num=91)
-        x = make_lon(sun=self, y=y)
+        x = make_lon(y=y)
         xyz: FloatArray = globe_crs.transform_points(
             x=np.rad2deg(x) + 180,
             y=np.rad2deg(y),
