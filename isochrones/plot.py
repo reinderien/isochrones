@@ -157,7 +157,7 @@ class FrameData(typing.NamedTuple):
     sun: SolarPosition  # Solar coordinates used to compute isochrones
     dusk: Nightshade    # Outer, lighter shading at sunrise/sunset; no refractive correction
     night: Nightshade   # Inner, darker shading at dawn/dusk; high refractive correction
-    prayers: tuple['FloatArray', ...]
+    prayer_isochrones: tuple['FloatArray', ...]
 
     @classmethod
     def make(
@@ -174,7 +174,7 @@ class FrameData(typing.NamedTuple):
             sun=sun,
             dusk=Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33),
             night=Nightshade(date=utcnow, delta=2, refraction=-night_angle, alpha=0.33),
-            prayers=tuple(
+            prayer_isochrones=tuple(
                 prayer.isochrone(globe_crs=sphere, sun=sun)
                 for prayer in PRAYERS
             ),
@@ -192,6 +192,7 @@ class HemispherePlots(typing.NamedTuple):
     origin_art: 'PathCollection'  # Cross at "here"
     origin_time_art: plt.Text     # Time text at "here"
     prayer_art: tuple[plt.Line2D, ...]  # All prayer isochrones
+    prayer_time_art: tuple[plt.Text, ...]
     north_arc_art: PathPatch | None  # Arc from north to geodesic
     heading_art: plt.Text | None  # Heading text, if we have it
 
@@ -222,7 +223,11 @@ class HemispherePlots(typing.NamedTuple):
         (
             dusk_art, night_art, geodesic_art, origin_art, origin_time_art,
         ) = cls.setup_common(ax=ax, data=data)
+
         prayer_art = cls.setup_prayer_isochrones(ax=ax, data=data)
+
+        prayer_time_art = cls.setup_prayer_times(ax=ax, data=data)
+
         north_arc_art, heading_art = (
             cls.setup_heading(ax=ax, data=data)
             if data.include_heading else (None, None)
@@ -232,8 +237,8 @@ class HemispherePlots(typing.NamedTuple):
             data=data, ax=ax,
             dusk_art=dusk_art, night_art=night_art, geodesic_art=geodesic_art,
             origin_art=origin_art, origin_time_art=origin_time_art,
-            prayer_art=prayer_art, north_arc_art=north_arc_art,
-            heading_art=heading_art,
+            prayer_art=prayer_art, prayer_time_art=prayer_time_art,
+            north_arc_art=north_arc_art, heading_art=heading_art,
         )
 
     def update(self, data: FrameData) -> tuple[plt.Artist, ...]:
@@ -244,6 +249,7 @@ class HemispherePlots(typing.NamedTuple):
         changed = (
             self.update_common(data)
             + self.update_prayer_isochrones(data)
+            + self.update_prayer_times(data)
         )
         if self.data.include_heading:
             changed += self.update_heading()
@@ -335,9 +341,27 @@ class HemispherePlots(typing.NamedTuple):
         return artists
 
     def update_prayer_isochrones(self, data: FrameData) -> tuple[plt.Artist, ...]:
-        for xy, artist in zip(data.prayers, self.prayer_art):
+        for xy, artist in zip(data.prayer_isochrones, self.prayer_art):
             artist.set_data(*xy)
         return self.prayer_art
+
+    @classmethod
+    def setup_prayer_times(
+        cls, ax: 'GeoAxes', data: HemisphereData,
+    ) -> tuple[plt.Text, ...]:
+        return tuple(
+            ax.text(
+                x=0, y=data.home[1],
+                s='', c=ANNOTATE_COLOUR,
+                rotation=-60, ha='right', va='top',
+                transform=data.sphere, zorder=12,
+            )
+            for _ in PRAYERS
+        )
+
+    def update_prayer_times(self, data: FrameData) -> tuple[plt.Artist, ...]:
+
+        return self.prayer_time_art
 
     @classmethod
     def setup_heading(
