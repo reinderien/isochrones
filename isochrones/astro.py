@@ -227,3 +227,37 @@ class SolarPosition(NamedTuple):
             src_crs=self.rotated_pole,
         ).T
         return xyz[:-1]
+
+    def isochrone_from_refraction(
+        self, globe_crs: 'CRS', angle: float, pm: bool,
+    ) -> 'FloatArray':
+        # Adaptation of Nightshade(), but with a coordinate system fixup, and only populating one
+        # side of daytime
+        refraction = np.deg2rad(angle)
+        npts = 91
+
+        # Fill latitudes up
+        y = np.linspace(-0.5*np.pi - refraction, 0.5*np.pi + refraction, npts)
+
+        # Solve the generalized equation for omega0, which is the
+        # angle of sunrise/sunset from solar noon
+        # We need to clip the input to arccos to [-1, 1] due to floating
+        # point precision and arccos creating nans for values outside
+        # of the domain
+        arccos_tmp = np.clip(
+            a=np.sin(refraction) / np.cos(y),
+            a_min=-1, a_max=1,
+        )
+        omega0 = np.arccos(arccos_tmp)
+
+        # Fill the longitude values from the offset for midnight.
+        x = omega0 - np.pi
+        if not pm:
+            x = -x
+
+        xyz: FloatArray = globe_crs.transform_points(
+            x=np.rad2deg(x),
+            y=np.rad2deg(y),
+            src_crs=self.rotated_pole,
+        ).T
+        return xyz[:-1]
