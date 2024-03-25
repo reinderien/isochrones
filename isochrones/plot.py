@@ -24,22 +24,23 @@ if typing.TYPE_CHECKING:
     from matplotlib.collections import PathCollection
     from matplotlib.typing import ColourType
     from pyproj import CRS
-    from .types import Coord, FloatArray
+    from .types import CoordDeg, CoordGeoDeg, Degree, GeoDeg, FloatArray, Metre
 
 
 GEODESIC_COLOUR = 'green'
 FEATURE_COLOUR = 'white'
 ANNOTATE_COLOUR = 'white'
 HEADING_COLOUR = 'red'
+DATETIME_FMT = '%Y-%m-%d %H:%M:%S %z'
 
 logger = logging.getLogger(__name__)
 
 
 def hires_arc(
-    centre: 'Coord',
+    centre: 'CoordDeg',
     radius: float,
-    theta1: float,
-    theta2: float,
+    theta1: 'Degree',
+    theta2: 'Degree',
     n: int | None = None,
     colour: typing.Optional['ColourType'] = None,
     transform: typing.Optional['CRS'] = None,
@@ -82,9 +83,9 @@ class HemisphereData(typing.NamedTuple):
     """
 
     name: str            # Hemisphere name, English or romanized Arabic
-    coord: 'Coord'       # "here" lon, lat in degrees; hemisphere centred on this
-    endpoint: 'Coord'    # "there" lon, lat in degrees; geodesic heads there
-    home: 'Coord'        # "home" lon, lat in degrees; ecliptic parallel here
+    coord: 'CoordGeoDeg'       # "here" lon, lat in degrees; hemisphere centred on this
+    endpoint: 'CoordGeoDeg'    # "there" lon, lat in degrees; geodesic heads there
+    home: 'CoordGeoDeg'        # "home" lon, lat in degrees; ecliptic parallel here
     crs: Orthographic    # Projective coordinate system for graphing
     sphere: Geodetic     # Spherical globe coordinate system
     ellipsoid: Geodetic  # Ellipsoid globe coordinate system
@@ -92,11 +93,11 @@ class HemisphereData(typing.NamedTuple):
     # Geodesic from coord to endpoint (forward), and reverse (back).
     # All azimuths are in degrees counterclockwise from east. Sphericals are used for plotting;
     # ellipsoidals are used for text.
-    geodesic_azm_ell_fwd: float  # Ellipsoid forward
-    geodesic_azm_ell_bck: float  # Ellipsoid backward
-    geodesic_azm_sph_fwd: float  # Spherical forward
-    geodesic_azm_sph_bck: float  # Spherical backward
-    geodesic_distance: float  # from coord to endpoint, m
+    geodesic_azm_ell_fwd: 'GeoDeg'  # Ellipsoid forward
+    geodesic_azm_ell_bck: 'GeoDeg'  # Ellipsoid backward
+    geodesic_azm_sph_fwd: 'GeoDeg'  # Spherical forward
+    geodesic_azm_sph_bck: 'GeoDeg'  # Spherical backward
+    geodesic_distance: 'Metre'  # from coord to endpoint, m
 
     timezone: tzinfo | None  # None means local timezone. Used for date display.
     is_home: bool            # Is this the home hemisphere?
@@ -106,12 +107,12 @@ class HemisphereData(typing.NamedTuple):
     def make(
         cls,
         name: str,
-        coord: 'Coord', endpoint: 'Coord',
+        coord: 'CoordGeoDeg', endpoint: 'CoordGeoDeg',
         local_timezone: tzinfo | None,
         ellipsoid: Geodetic, sphere: Geodetic | None = None,
-        geodesic_azm_ell_fwd: float | None = None, geodesic_azm_sph_fwd: float | None = None,
-        geodesic_azm_ell_bck: float | None = None, geodesic_azm_sph_bck: float | None = None,
-        geodesic_distance: float | None = None,
+        geodesic_azm_ell_fwd: 'GeoDeg' | None = None, geodesic_azm_sph_fwd: 'GeoDeg' | None = None,
+        geodesic_azm_ell_bck: 'GeoDeg' | None = None, geodesic_azm_sph_bck: 'GeoDeg' | None = None,
+        geodesic_distance: 'Metre' | None = None,
         is_home: bool = False, include_heading: bool = False,
     ) -> 'HemisphereData':
         """
@@ -159,7 +160,7 @@ class FrameData(typing.NamedTuple):
     night: Nightshade   # Inner, darker shading at dawn/dusk; high refractive correction
     prayer_isochrones: tuple['FloatArray', ...]
     prayer_times: tuple[  # time-longitude pairs
-        tuple[datetime, float], ...
+        tuple[datetime, 'GeoDeg'], ...
     ]
 
     @classmethod
@@ -321,7 +322,7 @@ class HemispherePlots(typing.NamedTuple):
 
         local_now = data.utcnow.astimezone(self.data.timezone)
         self.origin_time_art.set_text(
-            local_now.strftime('%Y-%m-%d %H:%M:%S %z')
+            local_now.strftime(DATETIME_FMT)
         )
 
         # This includes artists that haven't actually updated, but should be redrawn on top of the
@@ -368,10 +369,9 @@ class HemispherePlots(typing.NamedTuple):
 
     def update_prayer_times(self, data: FrameData) -> tuple[plt.Artist, ...]:
         art: plt.Text
+        time: datetime
         for art, (time, longitude) in zip (self.prayer_time_art, data.prayer_times):
-            art.set_text(
-
-            )
+            art.set_text(time.strftime(DATETIME_FMT))
             art.set_x(longitude)
 
         return self.prayer_time_art

@@ -1,6 +1,7 @@
 cartopy
 matplotlib
 numpy
+pyproj
 requests
 scipy
 shapely

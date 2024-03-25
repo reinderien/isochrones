@@ -10,7 +10,7 @@ from .astro import shadow_angle
 if typing.TYPE_CHECKING:
     from cartopy.crs import CRS
     from .astro import SolarPosition
-    from .types import FloatArray
+    from .types import Coord, FloatArray
 
 
 @dataclass(frozen=True)
@@ -21,6 +21,12 @@ class Prayer(ABC):
 
     @abstractmethod
     def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'FloatArray':
+        """
+        :param globe_crs: The coordinate reference system of the globe, used when translating to the
+                          night-rotated coordinate system. Typically Geodetic.
+        :return: A 2*n array of x, y coordinates in degrees; the boundary of "night" where the
+                 darkness level is controlled by self.angle.
+        """
         ...
 
     @abstractmethod
@@ -42,6 +48,17 @@ class NoonPrayer(Prayer):
             globe_crs=globe_crs, make_lon=self.make_lon,
         )
 
+    def time(
+        self,
+        home: 'Coord',
+        sun: 'SolarPosition',
+    ) -> tuple[
+        datetime,  # of the prayer within this day, in local timezone
+        float,     # intersection longitude of home parallel and isochrone
+    ]:
+        xy = sun.isochrone_from_noon_angle()
+        print()
+
 
 @dataclass(frozen=True, slots=True)
 class RefractionPrayer(Prayer):
@@ -49,15 +66,20 @@ class RefractionPrayer(Prayer):
     pm: bool      # true for any time after noon
 
     def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'FloatArray':
-        """
-        :param globe_crs: The coordinate reference system of the globe, used when translating to the
-                          night-rotated coordinate system. Typically Geodetic.
-        :return: A 2*n array of x, y coordinates in degrees; the boundary of "night" where the
-                 darkness level is controlled by self.angle.
-        """
+
         return sun.isochrone_from_refraction(
             globe_crs=globe_crs, angle=self.angle, pm=self.pm,
         )
+
+    def time(
+        self,
+        home: 'Coord',
+        sun: 'SolarPosition',
+    ) -> tuple[
+        datetime,  # of the prayer within this day, in local timezone
+        float,     # intersection longitude of home parallel and isochrone
+    ]:
+        print()
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +93,16 @@ class ShadowPrayer(Prayer):
         return sun.isochrone_from_noon_angle(
             globe_crs=globe_crs, make_lon=self.make_lon,
         )
+
+    def time(
+        self,
+        home: 'Coord',
+        sun: 'SolarPosition',
+    ) -> tuple[
+        datetime,  # of the prayer within this day, in local timezone
+        float,     # intersection longitude of home parallel and isochrone
+    ]:
+        print()
 
 
 # These definitions can vary significantly; see e.g.

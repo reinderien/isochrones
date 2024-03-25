@@ -125,7 +125,8 @@ Calculations relating solar time and
 require some background in terrestrial frames of reference. The Earth has at
 least four different kinds of pole:
 
-- The terrestrial poles - also called geodetic, geographic or
+- The terrestrial poles - also called geodetic,
+  [geographic](https://en.wikipedia.org/wiki/Geographic_coordinate_system) or
   [true poles](https://en.wikipedia.org/wiki/True_north) - are intersection
   points of Earth's rotational axis through its surface. We colloquially call
   these the north and south pole. They slowly

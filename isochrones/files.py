@@ -9,13 +9,13 @@ from urllib.parse import urljoin
 from requests import Session
 
 if typing.TYPE_CHECKING:
-    from .types import Coord
+    from .types import CoordGeoDeg
 
 
 logger = logging.getLogger(__name__)
 
 
-def load_home() -> 'Coord':
+def load_home() -> 'CoordGeoDeg':
     """
     Load the prayer coordinate
     """

@@ -211,14 +211,18 @@ class SolarPosition(typing.NamedTuple):
         )
 
     def isochrone_from_noon_angle(
-        self, globe_crs: 'CRS', make_lon: 'LonFromLat',
+        self,
+        globe_crs: 'CRS',
+        make_lon: 'LonFromLat',
+        y: typing.Union['FloatArray', float, None] = None,
     ) -> 'FloatArray':
         """
         :param globe_crs: The coordinate reference system of the globe, used when translating to the
                           night-rotated coordinate system. Typically Geodetic.
         :return: A 2*n array of x, y coordinates in degrees; the isochrone curve.
         """
-        y = np.linspace(start=-np.pi/2, stop=+np.pi/2, num=91)
+        if y is None:
+            y = np.linspace(start=-np.pi/2, stop=+np.pi/2, num=91)
         x = make_lon(y=y)
         xyz: FloatArray = globe_crs.transform_points(
             x=np.rad2deg(x) + 180,
