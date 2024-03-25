@@ -4,10 +4,11 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .astro import SolarPosition, shadow_angle
+from .astro import shadow_angle
 
 if typing.TYPE_CHECKING:
     from cartopy.crs import CRS
+    from .astro import SolarPosition
     from .types import FloatArray
 
 
@@ -18,7 +19,7 @@ class Prayer(ABC):
     colour: str   # for graphing
 
     @abstractmethod
-    def isochrone(self, globe_crs: 'CRS', sun: SolarPosition) -> 'FloatArray':
+    def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'FloatArray':
         ...
 
 
@@ -28,7 +29,7 @@ class NoonPrayer(Prayer):
     def make_lon(y: 'FloatArray') -> 'FloatArray':
         return np.zeros_like(y)
 
-    def isochrone(self, globe_crs: 'CRS', sun: SolarPosition) -> 'FloatArray':
+    def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'FloatArray':
         return sun.isochrone_from_noon_angle(
             globe_crs=globe_crs, make_lon=self.make_lon,
         )
@@ -39,7 +40,7 @@ class RefractionPrayer(Prayer):
     angle: float  # degrees after sunrise or before sunset
     pm: bool      # true for any time after noon
 
-    def isochrone(self, globe_crs: 'CRS', sun: SolarPosition) -> 'FloatArray':
+    def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'FloatArray':
         """
         :param globe_crs: The coordinate reference system of the globe, used when translating to the
                           night-rotated coordinate system. Typically Geodetic.
@@ -58,7 +59,7 @@ class ShadowPrayer(Prayer):
     def make_lon(self, y: 'FloatArray') -> 'FloatArray':
         return shadow_angle(shadow=self.shadow, y=y)
 
-    def isochrone(self, globe_crs: 'CRS', sun: SolarPosition) -> 'FloatArray':
+    def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'FloatArray':
         return sun.isochrone_from_noon_angle(
             globe_crs=globe_crs, make_lon=self.make_lon,
         )

@@ -15,7 +15,7 @@ from matplotlib.ticker import MultipleLocator
 from matplotlib.transforms import Affine2D
 
 from .astro import (
-    KAABA_COORD, KAABA_TIMEZONE, inverse_geodesic, SolarPosition, inverse_geodesic_hack,
+    KAABA_COORD, KAABA_TIMEZONE, inverse_geodesic, inverse_geodesic_hack, SolarPosition,
 )
 from .prayers import PRAYERS
 

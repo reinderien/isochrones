@@ -1,6 +1,4 @@
 import typing
-from datetime import datetime
-from typing import NamedTuple
 from zoneinfo import ZoneInfo
 
 import numpy as np
@@ -8,6 +6,7 @@ from cartopy.crs import RotatedPole
 from cartopy.feature.nightshade import _julian_day, _solar_position
 
 if typing.TYPE_CHECKING:
+    from datetime import datetime
     from cartopy.crs import CRS, Geodetic
     from .types import Coord, FloatArray
 
@@ -98,7 +97,7 @@ def shadow_angle(y: 'FloatArray', shadow: float) -> 'FloatArray':
     return A
 
 
-class SolarPosition(NamedTuple):
+class SolarPosition(typing.NamedTuple):
     """
     hamid           nightshade
     -----           ----------
@@ -113,7 +112,7 @@ class SolarPosition(NamedTuple):
     alpha           refraction
     """
     # nightshade.py         # Hamid guide
-    date: datetime          # passed into _julian_day
+    date: 'datetime'        # passed into _julian_day
     T_UT1: float            # d (j2000)
     lambda_M_sun: float     # q (solar longitude)
     M_sun: float            # g (solar anomaly)
@@ -128,7 +127,7 @@ class SolarPosition(NamedTuple):
     rotated_pole: RotatedPole
 
     @classmethod
-    def from_time(cls, utcnow: datetime) -> 'SolarPosition':
+    def from_time(cls, utcnow: 'datetime') -> 'SolarPosition':
         """
         Adaptation of cartopy.feature.nightshade._solar_position but in rad
         """
