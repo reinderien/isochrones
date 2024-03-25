@@ -2,9 +2,7 @@ import itertools
 import logging
 import typing
 from datetime import datetime, timedelta, timezone, tzinfo
-from typing import NamedTuple
 
-import numpy as np
 from cartopy.crs import Geodetic, Orthographic
 from cartopy.feature import ShapelyFeature
 from cartopy.feature.nightshade import Nightshade
@@ -14,9 +12,10 @@ from matplotlib.animation import FuncAnimation
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path
 from matplotlib.ticker import MultipleLocator
+from matplotlib.transforms import Affine2D
 
 from .astro import (
-    KAABA_COORD, KAABA_TIMEZONE, inverse_geodesic, SolarPosition,
+    KAABA_COORD, KAABA_TIMEZONE, inverse_geodesic, SolarPosition, inverse_geodesic_hack,
 )
 from .prayers import PRAYERS
 
@@ -41,30 +40,45 @@ def hires_arc(
     radius: float,
     theta1: float,
     theta2: float,
-    n: int = 10,
+    n: int | None = None,
     colour: typing.Optional['ColourType'] = None,
     transform: typing.Optional['CRS'] = None,
     zorder: int | None = None,
 ) -> PathPatch:
-    codes = np.full(shape=n, fill_value=Path.LINETO, dtype=Path.code_type)
-    codes[0] = Path.MOVETO
+    """
+    matplotlib's Arc patch looks pretty bad; it has a low and non-configurable resolution. This does
+    basically the same thing but with controllable resolution.
 
-    angles = np.linspace(start=theta1, stop=theta2, num=n)
-    vertices = centre + radius*np.stack((
-        np.cos(angles), np.sin(angles),
-    ), axis=1)
+    :param centre: x, y pair, centre of circle
+    :param radius: from centre
+    :param theta1: start angle, degrees counterclockwise from east
+    :param theta2: end anglee, degrees counterclockwise from east
+    :param n: number of vertices
+    :param colour: passed to the patch
+    :param transform: passed to the patch
+    :param zorder: passed to the patch
+    """
+    if n is None:
+        n = abs(int(round(0.5*(theta2 - theta1))))
 
+    scale = (
+        Affine2D()
+        .scale(radius)
+        .translate(tx=centre[0], ty=centre[1])
+    )
+    path = Path.arc(
+        theta1=theta1, theta2=theta2, n=n,
+    ).transformed(scale)
     return PathPatch(
-        path=Path(vertices=vertices, codes=codes),
-        edgecolor=colour, facecolor='none', zorder=zorder, transform=transform,
+        path=path, edgecolor=colour, facecolor='none', zorder=zorder, transform=transform,
     )
 
 
-class HemisphereData(NamedTuple):
+class HemisphereData(typing.NamedTuple):
     """
-    One hemisphere's worth of invariant data for graphing. Assumed spherical and not oblate because
-    the orthographic projection only accepts spherical. Printed figures like the inverse geodesic
-    still use the more accurate elliptical WGS-84.
+    One hemisphere's worth of invariant data for graphing. Most graphical elements assume the use of
+    a spherical and not ellipsoid CRS because the orthographic projection only accepts spherical.
+    Printed figures like the inverse geodesic still use the more accurate elliptical WGS-84.
     """
 
     name: str            # Hemisphere name, English or romanized Arabic
@@ -78,14 +92,14 @@ class HemisphereData(NamedTuple):
     # Geodesic from coord to endpoint (forward), and reverse (back).
     # All azimuths are in degrees counterclockwise from east. Sphericals are used for plotting;
     # ellipsoidals are used for text.
-    geodesic_azm_ell_fwd: float
-    geodesic_azm_sph_fwd: float
-    geodesic_azm_ell_bck: float
-    geodesic_azm_sph_bck: float
+    geodesic_azm_ell_fwd: float  # Ellipsoid forward
+    geodesic_azm_ell_bck: float  # Ellipsoid backward
+    geodesic_azm_sph_fwd: float  # Spherical forward
+    geodesic_azm_sph_bck: float  # Spherical backward
     geodesic_distance: float  # from coord to endpoint, m
 
     timezone: tzinfo | None  # None means local timezone. Used for date display.
-    parallel_on_self: bool   # Is the ecliptic parallel on 'coord'?
+    is_home: bool            # Is this the home hemisphere?
     include_heading: bool    # Do we include the geodesic heading on this plot?
 
     @classmethod
@@ -98,7 +112,7 @@ class HemisphereData(NamedTuple):
         geodesic_azm_ell_fwd: float | None = None, geodesic_azm_sph_fwd: float | None = None,
         geodesic_azm_ell_bck: float | None = None, geodesic_azm_sph_bck: float | None = None,
         geodesic_distance: float | None = None,
-        parallel_on_self: bool = False, include_heading: bool = False,
+        is_home: bool = False, include_heading: bool = False,
     ) -> 'HemisphereData':
         """
         :param sphere: if None, then a spherical geodetic will be made.
@@ -123,19 +137,9 @@ class HemisphereData(NamedTuple):
             # geodesic_azm_sph_fwd, geodesic_azm_sph_bck, _ = inverse_geodesic(
             #     geodetic=sphere, coord=coord, endpoint=endpoint,
             # )
-
-            # This is horrible, but it's the only way I can get the geodesic to match the
-            # departing angle
-            result = sphere.get_geod().inv_intermediate(
-                lon1=coord[0], lat1=coord[1],
-                lon2=endpoint[0], lat2=endpoint[1],
-                npts=int(endpoint[0] - coord[0])//10,
+            geodesic_azm_sph_fwd, geodesic_azm_sph_bck = inverse_geodesic_hack(
+                sphere=sphere, coord=coord, endpoint=endpoint,
             )
-            geodesic_azm_sph_fwd = 90 - np.rad2deg(np.arctan2(
-                result.lats[0] - coord[1],
-                result.lons[0] - coord[0],
-            ))
-            geodesic_azm_sph_bck = 0
 
         return cls(
             name=name, coord=coord, endpoint=endpoint, crs=crs, timezone=local_timezone,
@@ -143,14 +147,14 @@ class HemisphereData(NamedTuple):
             geodesic_azm_ell_fwd=geodesic_azm_ell_fwd, geodesic_azm_ell_bck=geodesic_azm_ell_bck,
             geodesic_azm_sph_fwd=geodesic_azm_sph_fwd, geodesic_azm_sph_bck=geodesic_azm_sph_bck,
             geodesic_distance=geodesic_distance,
-            home=coord if parallel_on_self else endpoint,
-            parallel_on_self=parallel_on_self, include_heading=include_heading,
+            home=coord if is_home else endpoint,
+            is_home=is_home, include_heading=include_heading,
         )
 
 
-class FrameData(NamedTuple):
-    utcnow: datetime    # Time used to compute ecliptic parallel and isochrones
-    sun: SolarPosition  # Solar coordinates used to compute ecliptic parallel and isochrones
+class FrameData(typing.NamedTuple):
+    utcnow: datetime    # Time used to compute isochrones
+    sun: SolarPosition  # Solar coordinates used to compute isochrones
     dusk: Nightshade    # Outer, lighter shading at sunrise/sunset; no refractive correction
     night: Nightshade   # Inner, darker shading at dawn/dusk; high refractive correction
     prayers: tuple['FloatArray', ...]
@@ -177,7 +181,7 @@ class FrameData(NamedTuple):
         )
 
 
-class HemispherePlots(NamedTuple):
+class HemispherePlots(typing.NamedTuple):
     data: HemisphereData  # Hemisphere invariants
 
     # Axes and artists that never get reassigned between frames, only updated.
@@ -200,8 +204,9 @@ class HemispherePlots(NamedTuple):
         n_axes: int = 2,
     ) -> 'HemispherePlots':
         """
-        :param index: of the axes within the figure.
+        :param data: hemisphere invariant geodata
         :param figure: to which the new axes will be added
+        :param index: of the axes within the figure.
         :param n_axes: in the figure. Typically two, for two hemispheres.
         :return: A HemispherePlots ready for either plotting or animation.
         """
@@ -290,7 +295,7 @@ class HemispherePlots(NamedTuple):
         )
 
         origin_time_art: plt.Text = ax.text(
-            x=data.coord[0], y=data.coord[1], rotation=270, s='',
+            x=data.coord[0], y=data.coord[1], rotation=-60, s='',
             transform=data.sphere, zorder=12, ha='left', va='top',
             c=ANNOTATE_COLOUR,
         )
@@ -318,8 +323,7 @@ class HemispherePlots(NamedTuple):
     ) -> tuple[plt.Line2D, ...]:
         """
         Plot all of the prayer isochrone curves. Isochrones are not strictly meridians, don't always
-        intersect, and are always partially occluded by the globe. They vary over time in position
-        but not colour.
+        intersect, and are always partially occluded by the globe. They move over time.
         """
         artists = tuple(itertools.chain.from_iterable(
             ax.plot(
@@ -346,12 +350,12 @@ class HemispherePlots(NamedTuple):
         heading in degrees. All frame-invariant.
         """
 
-        north = 0
+        north = 90
         north_arc_art = hires_arc(
             centre=data.coord, radius=10,
             transform=data.sphere, zorder=10,
-            theta1=np.deg2rad(90 - data.geodesic_azm_sph_fwd),
-            theta2=np.deg2rad(90 - north),
+            theta1=data.geodesic_azm_sph_fwd,
+            theta2=north,
             colour=HEADING_COLOUR,
         )
         ax.add_patch(north_arc_art)
@@ -396,7 +400,7 @@ def setup_spherical(home_coord: 'Coord') -> tuple[
     Plot two hemispheres in the spherical coordinate system, the left centred on 'home' (the prayer
     location) and the right centred on the Kaaba. These are expected to partially overlap.
     :param home_coord: Home lon, lat in degrees
-    :return: the plot figure.
+    :return: the plot figure and both plot data objects
     """
     plt.style.use('dark_background')
     fig: plt.Figure = plt.figure()
@@ -404,7 +408,7 @@ def setup_spherical(home_coord: 'Coord') -> tuple[
     ellipsoid = Geodetic()
     home_data = HemisphereData.make(
         name='Home', coord=home_coord, endpoint=KAABA_COORD, local_timezone=None,
-        ellipsoid=ellipsoid, include_heading=True, parallel_on_self=True,
+        ellipsoid=ellipsoid, include_heading=True, is_home=True,
     )
     kaaba_data = HemisphereData.make(
         name='Kaaba', coord=KAABA_COORD, endpoint=home_coord, local_timezone=KAABA_TIMEZONE,

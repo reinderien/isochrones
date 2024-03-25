@@ -39,7 +39,27 @@ def inverse_geodesic(
         lons1=coord[0], lons2=endpoint[0],
         lats1=coord[1], lats2=endpoint[1],
     )
-    return forward, back, distance
+    return forward % 360, back % 360, distance
+
+
+def inverse_geodesic_hack(
+    sphere: 'Geodetic', coord: 'Coord', endpoint: 'Coord',
+) -> tuple[
+    float,  # forward azimuth, degrees counterclockwise from east
+    float,  # back azimuth, degrees counterclockwise from east
+]:
+    # This is horrible, but it's the only way I can get the geodesic to match the
+    # departing angle on the orthographic plot
+    result = sphere.get_geod().inv_intermediate(
+        lon1=coord[0], lat1=coord[1],
+        lon2=endpoint[0], lat2=endpoint[1],
+        npts=int(endpoint[0] - coord[0]) // 10,
+        return_back_azimuth=True,
+    )
+    lons = np.array((result.lons[0], result.lons[-1])) - (coord[0], endpoint[0])
+    lats = np.array((result.lats[0], result.lats[-1])) - (coord[1], endpoint[1])
+    forward, back = np.rad2deg(np.arctan2(lats, lons)) % 360
+    return forward, back
 
 
 def unwrap(p: float) -> float:
