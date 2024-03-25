@@ -158,6 +158,9 @@ class FrameData(typing.NamedTuple):
     dusk: Nightshade    # Outer, lighter shading at sunrise/sunset; no refractive correction
     night: Nightshade   # Inner, darker shading at dawn/dusk; high refractive correction
     prayer_isochrones: tuple['FloatArray', ...]
+    prayer_times: tuple[  # time-longitude pairs
+        tuple[datetime, float], ...
+    ]
 
     @classmethod
     def make(
@@ -176,6 +179,10 @@ class FrameData(typing.NamedTuple):
             night=Nightshade(date=utcnow, delta=2, refraction=-night_angle, alpha=0.33),
             prayer_isochrones=tuple(
                 prayer.isochrone(globe_crs=sphere, sun=sun)
+                for prayer in PRAYERS
+            ),
+            prayer_times=tuple(
+                prayer.time()
                 for prayer in PRAYERS
             ),
         )
@@ -360,6 +367,12 @@ class HemispherePlots(typing.NamedTuple):
         )
 
     def update_prayer_times(self, data: FrameData) -> tuple[plt.Artist, ...]:
+        art: plt.Text
+        for art, (time, longitude) in zip (self.prayer_time_art, data.prayer_times):
+            art.set_text(
+
+            )
+            art.set_x(longitude)
 
         return self.prayer_time_art
 

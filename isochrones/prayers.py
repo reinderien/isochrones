@@ -1,6 +1,7 @@
 import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime
 
 import numpy as np
 
@@ -20,6 +21,13 @@ class Prayer(ABC):
 
     @abstractmethod
     def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'FloatArray':
+        ...
+
+    @abstractmethod
+    def time(self) -> tuple[
+        datetime,  # of the prayer within this day, in home timezone
+        float,     # intersection longitude of home parallel and isochrone
+    ]:
         ...
 
 
