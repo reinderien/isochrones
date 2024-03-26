@@ -110,9 +110,11 @@ class HemisphereData(typing.NamedTuple):
         coord: 'CoordGeoDeg', endpoint: 'CoordGeoDeg',
         local_timezone: tzinfo | None,
         ellipsoid: Geodetic, sphere: Geodetic | None = None,
-        geodesic_azm_ell_fwd: 'GeoDeg' | None = None, geodesic_azm_sph_fwd: 'GeoDeg' | None = None,
-        geodesic_azm_ell_bck: 'GeoDeg' | None = None, geodesic_azm_sph_bck: 'GeoDeg' | None = None,
-        geodesic_distance: 'Metre' | None = None,
+        geodesic_azm_ell_fwd: typing.Optional['GeoDeg'] = None,
+        geodesic_azm_sph_fwd: typing.Optional['GeoDeg'] = None,
+        geodesic_azm_ell_bck: typing.Optional['GeoDeg'] = None,
+        geodesic_azm_sph_bck: typing.Optional['GeoDeg'] = None,
+        geodesic_distance: typing.Optional['Metre'] = None,
         is_home: bool = False, include_heading: bool = False,
     ) -> 'HemisphereData':
         """
@@ -428,7 +430,7 @@ class HemispherePlots(typing.NamedTuple):
         )
 
 
-def setup_spherical(home_coord: 'Coord') -> tuple[
+def setup_spherical(home_coord: 'CoordGeoDeg') -> tuple[
     plt.Figure,
     HemispherePlots,
     HemispherePlots,
@@ -478,7 +480,7 @@ def update_spherical(
 
 
 def plot_spherical(
-    home_coord: 'Coord',
+    home_coord: 'CoordGeoDeg',
     utcnow: datetime | None = None,
 ) -> plt.Figure:
     """
@@ -494,7 +496,7 @@ def plot_spherical(
 
 
 def animate_spherical(
-    home_coord: 'Coord',
+    home_coord: 'CoordGeoDeg',
     start_utc: datetime | None = None,
     time_factor: float = 1,
 ) -> tuple[plt.Figure, FuncAnimation]:

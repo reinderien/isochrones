@@ -10,7 +10,7 @@ from .astro import shadow_angle
 if typing.TYPE_CHECKING:
     from cartopy.crs import CRS
     from .astro import SolarPosition
-    from .types import Coord, FloatArray
+    from .types import Coord, CoordEclipticDeg, Degree, FloatArray, GeoDeg
 
 
 @dataclass(frozen=True)
@@ -30,9 +30,14 @@ class Prayer(ABC):
         ...
 
     @abstractmethod
-    def time(self) -> tuple[
+    def time(
+        self,
+        globe_crs: 'CRS',
+        home: 'Coord',
+        sun: 'SolarPosition',
+    ) -> tuple[
         datetime,  # of the prayer within this day, in home timezone
-        float,     # intersection longitude of home parallel and isochrone
+        'GeoDeg',  # intersection longitude of home parallel and isochrone
     ]:
         ...
 
@@ -40,35 +45,39 @@ class Prayer(ABC):
 @dataclass(frozen=True, slots=True)
 class NoonPrayer(Prayer):
     @staticmethod
-    def make_lon(y: 'FloatArray') -> 'FloatArray':
-        return np.zeros_like(y)
+    def make_lon(y_ecl: 'FloatArray') -> 'FloatArray':
+        return np.zeros_like(y_ecl)
 
     def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'FloatArray':
-        return sun.isochrone_from_noon_angle(
+        return sun.noon_angle_to_isochrone(
             globe_crs=globe_crs, make_lon=self.make_lon,
         )
 
     def time(
         self,
-        home: 'Coord',
+        globe_crs: 'CRS',
+        home_ecl: 'CoordEclipticDeg',
         sun: 'SolarPosition',
     ) -> tuple[
-        datetime,  # of the prayer within this day, in local timezone
-        float,     # intersection longitude of home parallel and isochrone
+        datetime,  # of the prayer within this day, in home timezone
+        'GeoDeg',  # intersection longitude of home parallel and isochrone
     ]:
-        xy = sun.isochrone_from_noon_angle()
+        x_ecl, y_ecl = home_ecl
+        x_geo, time = sun.noon_angle_to_geolon_time(
+            globe_crs=globe_crs, make_lon=self.make_lon, y_ecl=y_ecl,
+        )
         print()
 
 
 @dataclass(frozen=True, slots=True)
 class RefractionPrayer(Prayer):
-    angle: float  # degrees after sunrise or before sunset
+    angle: 'Degree'  # degrees after sunrise or before sunset
     pm: bool      # true for any time after noon
 
     def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'FloatArray':
 
-        return sun.isochrone_from_refraction(
-            globe_crs=globe_crs, angle=self.angle, pm=self.pm,
+        return sun.refraction_to_isochrone(
+            globe_crs=globe_crs, refraction=self.angle, pm=self.pm,
         )
 
     def time(
@@ -86,11 +95,11 @@ class RefractionPrayer(Prayer):
 class ShadowPrayer(Prayer):
     shadow: float
 
-    def make_lon(self, y: 'FloatArray') -> 'FloatArray':
-        return shadow_angle(shadow=self.shadow, y=y)
+    def make_lon(self, y_ecl: 'FloatArray') -> 'FloatArray':
+        return shadow_angle(shadow=self.shadow, y_ecl=y_ecl)
 
     def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'FloatArray':
-        return sun.isochrone_from_noon_angle(
+        return sun.noon_angle_to_isochrone(
             globe_crs=globe_crs, make_lon=self.make_lon,
         )
 
