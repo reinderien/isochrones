@@ -157,6 +157,7 @@ class HemisphereData(typing.NamedTuple):
 
 class FrameData(typing.NamedTuple):
     utcnow: datetime    # Time used to compute isochrones
+    local_now: datetime
     sun: SolarPosition  # Solar coordinates used to compute isochrones
     dusk: Nightshade    # Outer, lighter shading at sunrise/sunset; no refractive correction
     night: Nightshade   # Inner, darker shading at dawn/dusk; high refractive correction
@@ -167,13 +168,18 @@ class FrameData(typing.NamedTuple):
 
     @classmethod
     def make(
-        cls, utcnow: datetime, sphere: Geodetic,
+        cls, utcnow: datetime, home_data: HemisphereData,
     ) -> 'FrameData':
+        local_now = utcnow.astimezone(home_data.timezone)
         sun = SolarPosition.from_time(utcnow)
         sun.test()
 
         # this angle should be made to match the angles in the prayer database
         night_angle = 15
+
+        home_ecl = sun.geographic_to_ecliptic(
+            home_data.ellipsoid, *home_data.home,
+        ).ravel()
 
         return cls(
             utcnow=utcnow,
@@ -181,11 +187,13 @@ class FrameData(typing.NamedTuple):
             dusk=Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33),
             night=Nightshade(date=utcnow, delta=2, refraction=-night_angle, alpha=0.33),
             prayer_isochrones=tuple(
-                prayer.isochrone(globe_crs=sphere, sun=sun)
+                prayer.isochrone(globe_crs=home_data.sphere, sun=sun)
                 for prayer in PRAYERS
             ),
             prayer_times=tuple(
-                prayer.time()
+                prayer.time(
+                    globe_crs=home_data.ellipsoid, sun=sun, home_ecl=home_ecl,
+                )
                 for prayer in PRAYERS
             ),
         )
@@ -322,9 +330,8 @@ class HemispherePlots(typing.NamedTuple):
         self.dusk_art._feature = data.dusk
         self.night_art._feature = data.night
 
-        local_now = data.utcnow.astimezone(self.data.timezone)
         self.origin_time_art.set_text(
-            local_now.strftime(DATETIME_FMT)
+            data.local_now.strftime(DATETIME_FMT)
         )
 
         # This includes artists that haven't actually updated, but should be redrawn on top of the
@@ -475,7 +482,9 @@ def update_spherical(
     Update the figure for one frame
     :param utcnow: Universal, tz-aware 'now' timestamp
     """
-    data = FrameData.make(utcnow=utcnow, sphere=home_plot.data.sphere)
+    data = FrameData.make(
+        utcnow=utcnow, home_data=home_plot.data,
+    )
     return home_plot.update(data) + kaaba_plot.update(data)
 
 

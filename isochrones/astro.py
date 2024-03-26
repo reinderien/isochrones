@@ -11,7 +11,7 @@ if typing.TYPE_CHECKING:
     from cartopy.crs import CRS, Geodetic
     from .types import (
         Coord, CoordEclipticDeg, Degree, DegArray, EclDeg, FloatArray,
-        GeoDeg, Metre, Radian, RadArray, Second,
+        GeoDeg, Metre, Radian, Second,
     )
 
     TConvertInput = typing.TypeVar('TConvertInput', bound=Degree | DegArray)
@@ -80,7 +80,7 @@ def unwrap(p: 'Radian') -> 'Radian':
     return p % (2*np.pi)
 
 
-def shadow_angle(y_ecl: 'RadArray', shadow: float) -> 'FloatArray':
+def shadow_angle(y_ecl: 'DegArray', shadow: float) -> 'DegArray':
     """
     Based on https://radhifadlillah.com/blog/2020-09-06-calculating-prayer-times/
     Return the angular difference in rad between solar noon and the 'asr'
@@ -89,15 +89,16 @@ def shadow_angle(y_ecl: 'RadArray', shadow: float) -> 'FloatArray':
     # we defer declination calculation to a transformation after this
     # function, it's already accounted for, and any declination terms are
     # replaced with sin(0)=0 and cos(0)=1.
+    y_rad = np.deg2rad(y_ecl)
     arg = np.sin(
         np.arctan(  # arccot(1/x) = arctan(x)
             1/(
                 shadow + np.tan(
-                    np.abs(y_ecl)
+                    np.abs(y_rad)
                 )
             )
         )
-    ) / np.cos(y)
+    ) / np.cos(y_rad)
 
     # Let the NaNs through, but don't complain about them.
     # arg = np.clip(arg, a_min=-1, a_max=1)
@@ -105,7 +106,7 @@ def shadow_angle(y_ecl: 'RadArray', shadow: float) -> 'FloatArray':
     A: FloatArray = np.full_like(a=arg, fill_value=np.nan)
     A[is_valid] = np.arccos(arg[is_valid])
 
-    return A
+    return np.rad2deg(A)
 
 
 def convert_crs(
@@ -113,8 +114,14 @@ def convert_crs(
     x: 'TConvertInput',
     y: 'TConvertInput',
 ) -> 'DegArray':
+    if isinstance(x, float) and isinstance(y, float):
+        x_array: 'DegArray' = np.array((x,))
+        y_array: 'DegArray' = np.array((y,))
+    else:
+        x_array = x
+        y_array = y
     xyz: DegArray = dest.transform_points(
-        x=x, y=y, src_crs=source,
+        x=x_array, y=y_array, src_crs=source,
     ).T
     return xyz[:-1, ...]
 
@@ -147,8 +154,8 @@ def refraction_to_ecliptic_longitude(
     return np.rad2deg(x)
 
 
-DEFAULT_Y_ECLIPTIC_RAD: RadArray = np.linspace(
-    start=-np.pi/2, stop=+np.pi/2, num=91, dtype=np.float64,
+DEFAULT_Y_ECLIPTIC: 'DegArray' = np.linspace(
+    start=-90, stop=+90, num=91, dtype=np.float64,
 )
 
 
@@ -291,7 +298,11 @@ class SolarPosition(typing.NamedTuple):
         xy: 'CoordEclipticDeg',
     ) -> tuple['GeoDeg', timedelta]:
         x_ecl, y_ecl = xy
+
+        # This is solar time. We need coordinated time eventually, which will add the
+        # current local time and the scaled difference between ecliptic longitudes.
         time = timedelta(days=x_ecl/360 + 0.5)
+
         x_geo, y_geo = self.ecliptic_to_geographic(
             globe_crs=globe_crs, x_ecl=x_ecl, y_ecl=y_ecl,
         )

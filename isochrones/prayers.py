@@ -82,13 +82,17 @@ class RefractionPrayer(Prayer):
 
     def time(
         self,
-        home: 'Coord',
+        globe_crs: 'CRS',
         sun: 'SolarPosition',
+        home_ecl: 'CoordEclipticDeg',
     ) -> tuple[
         datetime,  # of the prayer within this day, in local timezone
         float,     # intersection longitude of home parallel and isochrone
     ]:
-        print()
+        x_ecl, y_ecl = home_ecl
+        return sun.refraction_to_geolon_time(
+            globe_crs=globe_crs, refraction=self.angle, pm=self.pm, y_ecl=y_ecl,
+        )
 
 
 @dataclass(frozen=True, slots=True)
