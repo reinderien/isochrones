@@ -15,7 +15,7 @@ from matplotlib.ticker import MultipleLocator
 from matplotlib.transforms import Affine2D
 
 from .astro import (
-    KAABA_COORD, KAABA_TIMEZONE, inverse_geodesic, inverse_geodesic_hack, SolarPosition,
+    KAABA_COORD, KAABA_TIMEZONE, interpolate_time, inverse_geodesic, inverse_geodesic_hack, SolarPosition,
 )
 from .prayers import PRAYERS
 
@@ -177,24 +177,22 @@ class FrameData(typing.NamedTuple):
         # this angle should be made to match the angles in the prayer database
         night_angle = 15
 
-        home_ecl = sun.geographic_to_ecliptic(
-            home_data.ellipsoid, *home_data.home,
-        ).ravel()
+        isochrones = tuple(
+            prayer.isochrone(globe_crs=home_data.sphere, sun=sun)
+            for prayer in PRAYERS
+        )
 
         return cls(
             utcnow=utcnow, local_now=local_now, sun=sun,
             dusk=Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33),
             night=Nightshade(date=utcnow, delta=2, refraction=-night_angle, alpha=0.33),
-            prayer_isochrones=tuple(
-                prayer.isochrone(globe_crs=home_data.sphere, sun=sun)
-                for prayer in PRAYERS
-            ),
+            prayer_isochrones=isochrones,
             prayer_times=tuple(
-                prayer.time(
-                    globe_crs=home_data.ellipsoid, sun=sun, home_ecl=home_ecl,
+                interpolate_time(
+                    isochrone=isochrone, home=home_data.home,
                     local_now=local_now,
                 )
-                for prayer in PRAYERS
+                for isochrone in isochrones
             ),
         )
 
