@@ -10,8 +10,8 @@ if typing.TYPE_CHECKING:
     from datetime import datetime
     from cartopy.crs import CRS, Geodetic
     from .types import (
-        Coord, CoordEclipticDeg, Degree, DegArray, EclDeg, FloatArray,
-        GeoDeg, Metre, Radian, Second,
+        Coord, CoordEclipticDeg, Degree, DegArray, EclDeg,
+        GeoDeg, Metre, Radian, RadArray, Second,
     )
 
     TConvertInput = typing.TypeVar('TConvertInput', bound=Degree | DegArray)
@@ -103,7 +103,7 @@ def shadow_angle(y_ecl: 'DegArray', shadow: float) -> 'DegArray':
     # Let the NaNs through, but don't complain about them.
     # arg = np.clip(arg, a_min=-1, a_max=1)
     is_valid = (arg >= -1) & (arg <= +1)
-    A: FloatArray = np.full_like(a=arg, fill_value=np.nan)
+    A: 'RadArray' = np.full_like(a=arg, fill_value=np.nan)
     A[is_valid] = np.arccos(arg[is_valid])
 
     return np.rad2deg(A)
@@ -127,10 +127,10 @@ def convert_crs(
 
 
 def refraction_to_ecliptic_longitude(
-    y_ecl: 'typing.Union[EclDeg, FloatArray]',
+    y_ecl: 'typing.Union[EclDeg, DegArray]',
     refraction_deg: 'EclDeg',
     pm: bool,
-) -> 'typing.Union[EclDeg, FloatArray]':
+) -> 'typing.Union[EclDeg, DegArray]':
     # Adaptation of Nightshade(), but with a coordinate system fixup, and only populating one
     # side of daytime
     refraction = np.deg2rad(refraction_deg)
@@ -277,7 +277,7 @@ class SolarPosition(typing.NamedTuple):
         globe_crs: 'CRS',
         x_ecl,
         y_ecl,
-    ) -> 'FloatArray':
+    ) -> 'DegArray':
         return convert_crs(
             source=globe_crs, dest=self.rotated_pole, x=x_ecl, y=y_ecl,
         )
@@ -287,7 +287,7 @@ class SolarPosition(typing.NamedTuple):
         globe_crs: 'CRS',
         x_geo,
         y_geo,
-    ) -> 'FloatArray':
+    ) -> 'DegArray':
         return convert_crs(
             source=self.rotated_pole, dest=globe_crs, x=x_geo, y=y_geo,
         )
@@ -295,35 +295,37 @@ class SolarPosition(typing.NamedTuple):
     def ecliptic_to_geolon_time(
         self,
         globe_crs: 'CRS',
-        xy: 'CoordEclipticDeg',
+        home_ecl: 'CoordEclipticDeg',
+        time_ecl: 'EclDeg',
     ) -> tuple['GeoDeg', timedelta]:
-        x_ecl, y_ecl = xy
+        home_x, home_y = home_ecl
 
         # This is solar time. We need coordinated time eventually, which will add the
         # current local time and the scaled difference between ecliptic longitudes.
-        time = timedelta(days=x_ecl/360 + 0.5)
+        time = timedelta(days=(time_ecl - home_x)/360)
 
-        x_geo, y_geo = self.ecliptic_to_geographic(
-            globe_crs=globe_crs, x_ecl=x_ecl, y_ecl=y_ecl,
+        (x_geo,), (y_geo,), = self.ecliptic_to_geographic(
+            globe_crs=globe_crs, x_ecl=home_x, y_ecl=home_y,
         )
         return x_geo, time
 
     def noon_angle_to_geolon_time(
         self,
         globe_crs: 'CRS',
+        home_ecl: 'CoordEclipticDeg',
         make_lon: 'LonFromLat[EclDeg]',
-        y_ecl: 'EclDeg',
     ) -> tuple['GeoDeg', timedelta]:
-        x_ecl = make_lon(y_ecl=y_ecl)
+        x_ecl, y_ecl = home_ecl
+        time_ecl = make_lon(y_ecl=y_ecl)
         return self.ecliptic_to_geolon_time(
-            globe_crs=globe_crs, xy=(x_ecl, y_ecl),
+            globe_crs=globe_crs, time_ecl=time_ecl, home_ecl=home_ecl,
         )
 
     def noon_angle_to_isochrone(
         self,
         globe_crs: 'CRS',
-        make_lon: 'LonFromLat[FloatArray]',
-    ) -> 'FloatArray':
+        make_lon: 'LonFromLat[DegArray]',
+    ) -> 'DegArray':
         """
         :param globe_crs: The coordinate reference system of the globe, used when translating to the
                           night-rotated coordinate system. Typically Geodetic.
@@ -337,15 +339,16 @@ class SolarPosition(typing.NamedTuple):
     def refraction_to_geolon_time(
         self,
         globe_crs: 'CRS',
-        y_ecl: 'EclDeg',
+        home_ecl: 'CoordEclipticDeg',
         refraction: 'Degree',
         pm: bool,
     ) -> tuple['GeoDeg', timedelta]:
-        x_ecl = refraction_to_ecliptic_longitude(
-            refraction_deg=refraction, pm=pm, y_ecl=y_ecl,
+        home_x, home_y = home_ecl
+        time_ecl = refraction_to_ecliptic_longitude(
+            refraction_deg=refraction, pm=pm, y_ecl=home_y,
         )
         return self.ecliptic_to_geolon_time(
-            globe_crs=globe_crs, xy=(x_ecl, y_ecl),
+            globe_crs=globe_crs, home_ecl=home_ecl, time_ecl=time_ecl,
         )
 
     def refraction_to_isochrone(
@@ -353,7 +356,7 @@ class SolarPosition(typing.NamedTuple):
         globe_crs: 'CRS',
         refraction: 'Degree',
         pm: bool,
-    ) -> 'FloatArray':
+    ) -> 'DegArray':
         x_ecl = refraction_to_ecliptic_longitude(
             refraction_deg=refraction, pm=pm, y_ecl=DEFAULT_Y_ECLIPTIC,
         )

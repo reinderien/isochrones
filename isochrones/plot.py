@@ -24,7 +24,7 @@ if typing.TYPE_CHECKING:
     from matplotlib.collections import PathCollection
     from matplotlib.typing import ColourType
     from pyproj import CRS
-    from .types import CoordDeg, CoordGeoDeg, Degree, GeoDeg, FloatArray, Metre
+    from .types import CoordDeg, CoordGeoDeg, Degree, DegArray, GeoDeg, Metre
 
 
 GEODESIC_COLOUR = 'green'
@@ -161,7 +161,7 @@ class FrameData(typing.NamedTuple):
     sun: SolarPosition  # Solar coordinates used to compute isochrones
     dusk: Nightshade    # Outer, lighter shading at sunrise/sunset; no refractive correction
     night: Nightshade   # Inner, darker shading at dawn/dusk; high refractive correction
-    prayer_isochrones: tuple['FloatArray', ...]
+    prayer_isochrones: tuple['DegArray', ...]
     prayer_times: tuple[  # time-longitude pairs
         tuple[datetime, 'GeoDeg'], ...
     ]
@@ -182,8 +182,7 @@ class FrameData(typing.NamedTuple):
         ).ravel()
 
         return cls(
-            utcnow=utcnow,
-            sun=sun,
+            utcnow=utcnow, local_now=local_now, sun=sun,
             dusk=Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33),
             night=Nightshade(date=utcnow, delta=2, refraction=-night_angle, alpha=0.33),
             prayer_isochrones=tuple(
@@ -193,6 +192,7 @@ class FrameData(typing.NamedTuple):
             prayer_times=tuple(
                 prayer.time(
                     globe_crs=home_data.ellipsoid, sun=sun, home_ecl=home_ecl,
+                    local_now=local_now,
                 )
                 for prayer in PRAYERS
             ),
@@ -379,7 +379,7 @@ class HemispherePlots(typing.NamedTuple):
     def update_prayer_times(self, data: FrameData) -> tuple[plt.Artist, ...]:
         art: plt.Text
         time: datetime
-        for art, (time, longitude) in zip (self.prayer_time_art, data.prayer_times):
+        for art, (time, longitude) in zip(self.prayer_time_art, data.prayer_times):
             art.set_text(time.strftime(DATETIME_FMT))
             art.set_x(longitude)
 
