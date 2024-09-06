@@ -24,7 +24,7 @@ if typing.TYPE_CHECKING:
     from matplotlib.collections import PathCollection
     from matplotlib.typing import ColourType
     from pyproj import CRS
-    from .types import Coord, FloatArray
+    from .types import Coord, CoordGeoDeg, Degree, DegArray, Metre
 
 
 GEODESIC_COLOUR = 'green'
@@ -38,11 +38,11 @@ logger = logging.getLogger(__name__)
 def hires_arc(
     centre: 'Coord',
     radius: float,
-    theta1: float,
-    theta2: float,
+    theta1: 'Degree',
+    theta2: 'Degree',
     n: int | None = None,
-    colour: typing.Optional['ColourType'] = None,
-    transform: typing.Optional['CRS'] = None,
+    colour: 'ColourType | None' = None,
+    transform: 'CRS | None' = None,
     zorder: int | None = None,
 ) -> PathPatch:
     """
@@ -81,22 +81,22 @@ class HemisphereData(typing.NamedTuple):
     Printed figures like the inverse geodesic still use the more accurate elliptical WGS-84.
     """
 
-    name: str            # Hemisphere name, English or romanized Arabic
-    coord: 'Coord'       # "here" lon, lat in degrees; hemisphere centred on this
-    endpoint: 'Coord'    # "there" lon, lat in degrees; geodesic heads there
-    home: 'Coord'        # "home" lon, lat in degrees; ecliptic parallel here
-    crs: Orthographic    # Projective coordinate system for graphing
-    sphere: Geodetic     # Spherical globe coordinate system
-    ellipsoid: Geodetic  # Ellipsoid globe coordinate system
+    name: str                # Hemisphere name, English or romanized Arabic
+    coord: 'CoordGeoDeg'     # "here" lon, lat in degrees; hemisphere centred on this
+    endpoint: 'CoordGeoDeg'  # "there" lon, lat in degrees; geodesic heads there
+    home: 'CoordGeoDeg'      # "home" lon, lat in degrees; ecliptic parallel here
+    crs: Orthographic        # Projective coordinate system for graphing
+    sphere: Geodetic         # Spherical globe coordinate system
+    ellipsoid: Geodetic      # Ellipsoid globe coordinate system
 
     # Geodesic from coord to endpoint (forward), and reverse (back).
     # All azimuths are in degrees counterclockwise from east. Sphericals are used for plotting;
     # ellipsoidals are used for text.
-    geodesic_azm_ell_fwd: float  # Ellipsoid forward
-    geodesic_azm_ell_bck: float  # Ellipsoid backward
-    geodesic_azm_sph_fwd: float  # Spherical forward
-    geodesic_azm_sph_bck: float  # Spherical backward
-    geodesic_distance: float  # from coord to endpoint, m
+    geodesic_azm_ell_fwd: 'Degree'  # Ellipsoid forward
+    geodesic_azm_ell_bck: 'Degree'  # Ellipsoid backward
+    geodesic_azm_sph_fwd: 'Degree'  # Spherical forward
+    geodesic_azm_sph_bck: 'Degree'  # Spherical backward
+    geodesic_distance: 'Metre'  # from coord to endpoint, m
 
     timezone: tzinfo | None  # None means local timezone. Used for date display.
     is_home: bool            # Is this the home hemisphere?
@@ -106,12 +106,12 @@ class HemisphereData(typing.NamedTuple):
     def make(
         cls,
         name: str,
-        coord: 'Coord', endpoint: 'Coord',
+        coord: 'CoordGeoDeg', endpoint: 'CoordGeoDeg',
         local_timezone: tzinfo | None,
         ellipsoid: Geodetic, sphere: Geodetic | None = None,
-        geodesic_azm_ell_fwd: float | None = None, geodesic_azm_sph_fwd: float | None = None,
-        geodesic_azm_ell_bck: float | None = None, geodesic_azm_sph_bck: float | None = None,
-        geodesic_distance: float | None = None,
+        geodesic_azm_ell_fwd: 'Degree | None' = None, geodesic_azm_sph_fwd: 'Degree | None' = None,
+        geodesic_azm_ell_bck: 'Degree | None' = None, geodesic_azm_sph_bck: 'Degree | None' = None,
+        geodesic_distance: 'Metre | None' = None,
         is_home: bool = False, include_heading: bool = False,
     ) -> 'HemisphereData':
         """
@@ -157,7 +157,7 @@ class FrameData(typing.NamedTuple):
     sun: SolarPosition  # Solar coordinates used to compute isochrones
     dusk: Nightshade    # Outer, lighter shading at sunrise/sunset; no refractive correction
     night: Nightshade   # Inner, darker shading at dawn/dusk; high refractive correction
-    prayer_isochrones: tuple['FloatArray', ...]
+    prayer_isochrones: 'tuple[DegArray, ...]'
 
     @classmethod
     def make(
@@ -415,7 +415,7 @@ class HemispherePlots(typing.NamedTuple):
         )
 
 
-def setup_spherical(home_coord: 'Coord') -> tuple[
+def setup_spherical(home_coord: 'CoordGeoDeg') -> tuple[
     plt.Figure,
     HemispherePlots,
     HemispherePlots,
@@ -465,7 +465,7 @@ def update_spherical(
 
 
 def plot_spherical(
-    home_coord: 'Coord',
+    home_coord: 'CoordGeoDeg',
     utcnow: datetime | None = None,
 ) -> plt.Figure:
     """
@@ -481,7 +481,7 @@ def plot_spherical(
 
 
 def animate_spherical(
-    home_coord: 'Coord',
+    home_coord: 'CoordGeoDeg',
     start_utc: datetime | None = None,
     time_factor: float = 1,
 ) -> tuple[plt.Figure, FuncAnimation]:

@@ -8,10 +8,10 @@ from cartopy.feature.nightshade import _julian_day, _solar_position
 if typing.TYPE_CHECKING:
     from datetime import datetime
     from cartopy.crs import CRS, Geodetic
-    from .types import Coord, FloatArray
+    from .types import CoordGeoDeg, Degree, DegArray, Metre, RadArray
 
     class LonFromLat(typing.Protocol):
-        def __call__(self, y: 'FloatArray') -> 'FloatArray':
+        def __call__(self, y: 'RadArray') -> 'RadArray':
             ...
 
 
@@ -21,11 +21,11 @@ KAABA_TIMEZONE = ZoneInfo('Asia/Riyadh')
 
 
 def inverse_geodesic(
-    geodetic: 'Geodetic', coord: 'Coord', endpoint: 'Coord',
+    geodetic: 'Geodetic', coord: 'CoordGeoDeg', endpoint: 'CoordGeoDeg',
 ) -> tuple[
-    float,  # forward azimuth, degrees counterclockwise from east
-    float,  # back azimuth, degrees counterclockwise from east
-    float,  # distance, m
+    'Degree',  # forward azimuth, degrees counterclockwise from east
+    'Degree',  # back azimuth, degrees counterclockwise from east
+    'Metre',   # distance, m
 ]:
     """
     Calculate the inverse geodesic parameters between the prayer location and the Kaaba.
@@ -42,10 +42,10 @@ def inverse_geodesic(
 
 
 def inverse_geodesic_hack(
-    sphere: 'Geodetic', coord: 'Coord', endpoint: 'Coord',
+    sphere: 'Geodetic', coord: 'CoordGeoDeg', endpoint: 'CoordGeoDeg',
 ) -> tuple[
-    float,  # forward azimuth, degrees counterclockwise from east
-    float,  # back azimuth, degrees counterclockwise from east
+    'Degree',  # forward azimuth, degrees counterclockwise from east
+    'Degree',  # back azimuth, degrees counterclockwise from east
 ]:
     # This is horrible, but it's the only way I can get the geodesic to match the
     # departing angle on the orthographic plot
@@ -69,7 +69,7 @@ def unwrap(p: float) -> float:
     return p % (2*np.pi)
 
 
-def shadow_angle(y: 'FloatArray', shadow: float) -> 'FloatArray':
+def shadow_angle(y: 'RadArray', shadow: float) -> 'RadArray':
     """
     Based on https://radhifadlillah.com/blog/2020-09-06-calculating-prayer-times/
     Return the angular difference in rad between solar noon and the 'asr'
@@ -91,7 +91,7 @@ def shadow_angle(y: 'FloatArray', shadow: float) -> 'FloatArray':
     # Let the NaNs through, but don't complain about them.
     # arg = np.clip(arg, a_min=-1, a_max=1)
     is_valid = (arg >= -1) & (arg <= +1)
-    A: FloatArray = np.full_like(a=arg, fill_value=np.nan)
+    A: 'RadArray' = np.full_like(a=arg, fill_value=np.nan)
     A[is_valid] = np.arccos(arg[is_valid])
 
     return A
@@ -212,7 +212,7 @@ class SolarPosition(typing.NamedTuple):
 
     def isochrone_from_noon_angle(
         self, globe_crs: 'CRS', make_lon: 'LonFromLat',
-    ) -> 'FloatArray':
+    ) -> 'DegArray':
         """
         :param globe_crs: The coordinate reference system of the globe, used when translating to the
                           night-rotated coordinate system. Typically Geodetic.
@@ -220,7 +220,7 @@ class SolarPosition(typing.NamedTuple):
         """
         y = np.linspace(start=-np.pi/2, stop=+np.pi/2, num=91)
         x = make_lon(y=y)
-        xyz: FloatArray = globe_crs.transform_points(
+        xyz: 'DegArray' = globe_crs.transform_points(
             x=np.rad2deg(x) + 180,
             y=np.rad2deg(y),
             src_crs=self.rotated_pole,
@@ -228,8 +228,8 @@ class SolarPosition(typing.NamedTuple):
         return xyz[:-1]
 
     def isochrone_from_refraction(
-        self, globe_crs: 'CRS', angle: float, pm: bool,
-    ) -> 'FloatArray':
+        self, globe_crs: 'CRS', angle: 'Degree', pm: bool,
+    ) -> 'DegArray':
         # Adaptation of Nightshade(), but with a coordinate system fixup, and only populating one
         # side of daytime
         refraction = np.deg2rad(angle)
@@ -254,7 +254,7 @@ class SolarPosition(typing.NamedTuple):
         if not pm:
             x = -x
 
-        xyz: FloatArray = globe_crs.transform_points(
+        xyz: 'DegArray' = globe_crs.transform_points(
             x=np.rad2deg(x),
             y=np.rad2deg(y),
             src_crs=self.rotated_pole,

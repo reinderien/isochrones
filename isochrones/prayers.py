@@ -9,7 +9,7 @@ from .astro import shadow_angle
 if typing.TYPE_CHECKING:
     from cartopy.crs import CRS
     from .astro import SolarPosition
-    from .types import FloatArray
+    from .types import Degree, DegArray, RadArray
 
 
 @dataclass(frozen=True)
@@ -19,17 +19,17 @@ class Prayer(ABC):
     colour: str   # for graphing
 
     @abstractmethod
-    def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'FloatArray':
+    def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'DegArray':
         ...
 
 
 @dataclass(frozen=True, slots=True)
 class NoonPrayer(Prayer):
     @staticmethod
-    def make_lon(y: 'FloatArray') -> 'FloatArray':
+    def make_lon(y: 'RadArray') -> 'RadArray':
         return np.zeros_like(y)
 
-    def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'FloatArray':
+    def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'DegArray':
         return sun.isochrone_from_noon_angle(
             globe_crs=globe_crs, make_lon=self.make_lon,
         )
@@ -37,10 +37,10 @@ class NoonPrayer(Prayer):
 
 @dataclass(frozen=True, slots=True)
 class RefractionPrayer(Prayer):
-    angle: float  # degrees after sunrise or before sunset
-    pm: bool      # true for any time after noon
+    angle: 'Degree'  # degrees after sunrise or before sunset
+    pm: bool         # true for any time after noon
 
-    def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'FloatArray':
+    def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'DegArray':
         """
         :param globe_crs: The coordinate reference system of the globe, used when translating to the
                           night-rotated coordinate system. Typically Geodetic.
@@ -56,10 +56,10 @@ class RefractionPrayer(Prayer):
 class ShadowPrayer(Prayer):
     shadow: float
 
-    def make_lon(self, y: 'FloatArray') -> 'FloatArray':
+    def make_lon(self, y: 'RadArray') -> 'RadArray':
         return shadow_angle(shadow=self.shadow, y=y)
 
-    def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'FloatArray':
+    def isochrone(self, globe_crs: 'CRS', sun: 'SolarPosition') -> 'DegArray':
         return sun.isochrone_from_noon_angle(
             globe_crs=globe_crs, make_lon=self.make_lon,
         )
