@@ -31,6 +31,7 @@ GEODESIC_COLOUR = 'green'
 FEATURE_COLOUR = 'white'
 ANNOTATE_COLOUR = 'white'
 HEADING_COLOUR = 'red'
+NIGHT_ALPHA = 0.33
 
 logger = logging.getLogger(__name__)
 
@@ -172,8 +173,8 @@ class FrameData(typing.NamedTuple):
         return cls(
             utcnow=utcnow,
             sun=sun,
-            dusk=Nightshade(date=utcnow, delta=2, refraction=0, alpha=0.33),
-            night=Nightshade(date=utcnow, delta=2, refraction=-night_angle, alpha=0.33),
+            dusk=Nightshade(date=utcnow, delta=2, refraction=0),
+            night=Nightshade(date=utcnow, delta=2, refraction=-night_angle),
             prayer_isochrones=tuple(
                 prayer.isochrone(globe_crs=sphere, sun=sun)
                 for prayer in PRAYERS
@@ -282,9 +283,11 @@ class HemispherePlots(typing.NamedTuple):
         Plot the common elements: the surface bitmap, night shading, the geodetic between the prayer
         location and the Kaaba, and the time at the centre.
         """
-        null_feature = ShapelyFeature(geometries=[], crs=data.crs)
-        dusk_art: FeatureArtist = ax.add_feature(null_feature, zorder=5)
-        night_art: FeatureArtist = ax.add_feature(null_feature, zorder=5)
+
+        # As of Cartopy 0.23.0, the alpha and color parameters must be set here rather than during update.
+        null_feature = ShapelyFeature(geometries=[], crs=data.crs, alpha=NIGHT_ALPHA, color='black')
+        dusk_art: FeatureArtist = ax.add_feature(feature=null_feature, zorder=5)
+        night_art: FeatureArtist = ax.add_feature(feature=null_feature, zorder=5)
 
         geodesic_art: plt.Line2D
         geodesic_art, = ax.plot(
