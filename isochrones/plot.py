@@ -31,19 +31,20 @@ GEODESIC_COLOUR = 'green'
 FEATURE_COLOUR = 'white'
 ANNOTATE_COLOUR = 'white'
 HEADING_COLOUR = 'red'
+NIGHT_ALPHA = 0.33
 DATETIME_FMT = '%Y-%m-%d %H:%M:%S %z'
 
 logger = logging.getLogger(__name__)
 
 
 def hires_arc(
-    centre: 'CoordDeg',
+    centre: 'Coord',
     radius: float,
     theta1: 'Degree',
     theta2: 'Degree',
     n: int | None = None,
-    colour: typing.Optional['ColourType'] = None,
-    transform: typing.Optional['CRS'] = None,
+    colour: 'ColourType | None' = None,
+    transform: 'CRS | None' = None,
     zorder: int | None = None,
 ) -> PathPatch:
     """
@@ -82,21 +83,21 @@ class HemisphereData(typing.NamedTuple):
     Printed figures like the inverse geodesic still use the more accurate elliptical WGS-84.
     """
 
-    name: str            # Hemisphere name, English or romanized Arabic
-    coord: 'CoordGeoDeg'       # "here" lon, lat in degrees; hemisphere centred on this
-    endpoint: 'CoordGeoDeg'    # "there" lon, lat in degrees; geodesic heads there
-    home: 'CoordGeoDeg'        # "home" lon, lat in degrees; ecliptic parallel here
-    crs: Orthographic    # Projective coordinate system for graphing
-    sphere: Geodetic     # Spherical globe coordinate system
-    ellipsoid: Geodetic  # Ellipsoid globe coordinate system
+    name: str                # Hemisphere name, English or romanized Arabic
+    coord: 'CoordGeoDeg'     # "here" lon, lat in degrees; hemisphere centred on this
+    endpoint: 'CoordGeoDeg'  # "there" lon, lat in degrees; geodesic heads there
+    home: 'CoordGeoDeg'      # "home" lon, lat in degrees; ecliptic parallel here
+    crs: Orthographic        # Projective coordinate system for graphing
+    sphere: Geodetic         # Spherical globe coordinate system
+    ellipsoid: Geodetic      # Ellipsoid globe coordinate system
 
     # Geodesic from coord to endpoint (forward), and reverse (back).
     # All azimuths are in degrees counterclockwise from east. Sphericals are used for plotting;
     # ellipsoidals are used for text.
-    geodesic_azm_ell_fwd: 'GeoDeg'  # Ellipsoid forward
-    geodesic_azm_ell_bck: 'GeoDeg'  # Ellipsoid backward
-    geodesic_azm_sph_fwd: 'GeoDeg'  # Spherical forward
-    geodesic_azm_sph_bck: 'GeoDeg'  # Spherical backward
+    geodesic_azm_ell_fwd: 'Degree'  # Ellipsoid forward
+    geodesic_azm_ell_bck: 'Degree'  # Ellipsoid backward
+    geodesic_azm_sph_fwd: 'Degree'  # Spherical forward
+    geodesic_azm_sph_bck: 'Degree'  # Spherical backward
     geodesic_distance: 'Metre'  # from coord to endpoint, m
 
     timezone: tzinfo | None  # None means local timezone. Used for date display.
@@ -110,11 +111,9 @@ class HemisphereData(typing.NamedTuple):
         coord: 'CoordGeoDeg', endpoint: 'CoordGeoDeg',
         local_timezone: tzinfo | None,
         ellipsoid: Geodetic, sphere: Geodetic | None = None,
-        geodesic_azm_ell_fwd: typing.Optional['GeoDeg'] = None,
-        geodesic_azm_sph_fwd: typing.Optional['GeoDeg'] = None,
-        geodesic_azm_ell_bck: typing.Optional['GeoDeg'] = None,
-        geodesic_azm_sph_bck: typing.Optional['GeoDeg'] = None,
-        geodesic_distance: typing.Optional['Metre'] = None,
+        geodesic_azm_ell_fwd: 'Degree | None' = None, geodesic_azm_sph_fwd: 'Degree | None' = None,
+        geodesic_azm_ell_bck: 'Degree | None' = None, geodesic_azm_sph_bck: 'Degree | None' = None,
+        geodesic_distance: 'Metre | None' = None,
         is_home: bool = False, include_heading: bool = False,
     ) -> 'HemisphereData':
         """
@@ -161,7 +160,7 @@ class FrameData(typing.NamedTuple):
     sun: SolarPosition  # Solar coordinates used to compute isochrones
     dusk: Nightshade    # Outer, lighter shading at sunrise/sunset; no refractive correction
     night: Nightshade   # Inner, darker shading at dawn/dusk; high refractive correction
-    prayer_isochrones: tuple['DegArray', ...]
+    prayer_isochrones: 'tuple[DegArray, ...]'
     prayer_times: tuple[  # time-longitude pairs
         tuple[datetime, 'GeoDeg'], ...
     ]
@@ -298,9 +297,11 @@ class HemispherePlots(typing.NamedTuple):
         Plot the common elements: the surface bitmap, night shading, the geodetic between the prayer
         location and the Kaaba, and the time at the centre.
         """
-        null_feature = ShapelyFeature(geometries=[], crs=data.crs)
-        dusk_art: FeatureArtist = ax.add_feature(null_feature, zorder=5)
-        night_art: FeatureArtist = ax.add_feature(null_feature, zorder=5)
+
+        # As of Cartopy 0.23.0, the alpha and color parameters must be set here rather than during update.
+        null_feature = ShapelyFeature(geometries=[], crs=data.crs, alpha=NIGHT_ALPHA, color='black')
+        dusk_art: FeatureArtist = ax.add_feature(feature=null_feature, zorder=5)
+        night_art: FeatureArtist = ax.add_feature(feature=null_feature, zorder=5)
 
         geodesic_art: plt.Line2D
         geodesic_art, = ax.plot(

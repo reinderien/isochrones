@@ -8,7 +8,10 @@ GeoDeg = Degree  # geographic
 EclDeg = Degree  # ecliptic
 Second = float
 
+# Coordinates, unitless
 Coord = tuple[float, float]
+
+# Coordinates, degrees, unspecified whether ecliptic or geographic
 CoordDeg = tuple[Degree, Degree]
 CoordEclipticDeg = tuple[EclDeg, EclDeg]
 CoordGeoDeg = tuple[GeoDeg, GeoDeg]

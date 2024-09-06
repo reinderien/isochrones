@@ -2,6 +2,7 @@ import argparse
 import logging
 import sys
 from datetime import datetime, timezone
+from .types import GeoDeg
 
 
 def utc_parse(s: str) -> datetime:
@@ -43,11 +44,11 @@ def make_parser() -> argparse.ArgumentParser:
              'beginning of animation sequence; default now',
     )
     parser.add_argument(
-        '-x', '--longitude', type=float,
+        '-x', '--longitude', type=GeoDeg,
         help='Home longitude in degrees (overrides .home.json)',
     )
     parser.add_argument(
-        '-y', '--latitude', type=float,
+        '-y', '--latitude', type=GeoDeg,
         help='Home latitude in degrees (overrides .home.json)',
     )
 
