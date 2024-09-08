@@ -72,6 +72,7 @@ class ShadowPrayer(Prayer):
 PRAYERS = (
     RefractionPrayer(name='Fajr', colour='orange', angle=-15, pm=False),
     NoonPrayer(name='Dhuhr', colour='yellow'),
+    # "Shafi'i" variant
     ShadowPrayer(name='Asr', colour='fuchsia', shadow=1),
     RefractionPrayer(name='Maghrib', colour='purple', angle=-0.8333, pm=True),
     RefractionPrayer(name='Isha', colour='blue', angle=-15, pm=True),
