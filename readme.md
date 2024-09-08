@@ -259,3 +259,28 @@ between the depicted time and the true time. The true time depends on an
 accurate operating system clock. The program does not look up the correct time
 zone for 'home'; instead it assumes that the operating system's local time zone
 corresponds to the correct time zone for 'home'.
+
+
+Test Cases
+==========
+
+In all cases, use the Islamic Society of North America (15/15) for prayer method,
+and Shafi for Asar Method.
+
+[St. John's, Canada](https://www.salahtimes.com/canada/st-johns) during 
+fajr, dhuhr, asr, maghrib, and isha:
+
+    python -m isochrones -s -t 2024-09-08T05:02-02:30 -x -52.703471 -y 47.567119
+    python -m isochrones -s -t 2024-09-08T12:59-02:30 -x -52.703471 -y 47.567119
+    python -m isochrones -s -t 2024-09-08T16:34-02:30 -x -52.703471 -y 47.567119
+    python -m isochrones -s -t 2024-09-08T19:27-02:30 -x -52.703471 -y 47.567119
+    python -m isochrones -s -t 2024-09-08T20:55-02:30 -x -52.703471 -y 47.567119
+
+[Trondheim, Norway during asr](https://www.salahtimes.com/norway/trondheim):
+
+    python -m isochrones -s -t 2024-09-08T10:44-04:00 -x 10.39332 -y 63.42932
+
+[Bloemfontein, South Africa during asr](https://www.salahtimes.com/south-africa/bloemfontein):
+
+    python -m isochrones -s -t 2024-09-08T09:34-04:00 -x 26.21904 -y -29.12502
+
